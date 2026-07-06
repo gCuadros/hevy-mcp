@@ -5,6 +5,9 @@
   "description": "MCP server for Hevy — read-only analytics connector, Strava-style",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "hevy-mcp": "./dist/stdio.js"
+  },
   "packageManager": "yarn@1.22.22",
   "engines": {
     "node": ">=22"

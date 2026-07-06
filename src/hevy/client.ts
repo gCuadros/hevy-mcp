@@ -1,14 +1,16 @@
 import {
-  exerciseTemplateSchema,
-  routineFolderSchema,
-  routineSchema,
+  exerciseTemplatesPageSchema,
+  routineFoldersPageSchema,
+  routinesPageSchema,
+  workoutEventsPageSchema,
   workoutSchema,
   workoutsCountSchema,
   workoutsPageSchema,
-  type ExerciseTemplate,
-  type Routine,
-  type RoutineFolder,
+  type ExerciseTemplatesPage,
+  type RoutineFoldersPage,
+  type RoutinesPage,
   type Workout,
+  type WorkoutEventsPage,
   type WorkoutsPage,
 } from "./schemas.js";
 
@@ -66,25 +68,36 @@ export class HevyClient {
     return workoutsCountSchema.parse(data).workout_count;
   }
 
-  async getRoutines(params: { page?: number; pageSize?: number } = {}): Promise<Routine[]> {
+  async getWorkoutEvents(params: { since: string; page?: number; pageSize?: number }): Promise<WorkoutEventsPage> {
+    const search = new URLSearchParams({ since: params.since });
+    if (params.page) search.set("page", String(params.page));
+    if (params.pageSize) search.set("pageSize", String(params.pageSize));
+    const data = await this.request(`/workouts/events?${search.toString()}`);
+    return workoutEventsPageSchema.parse(data);
+  }
+
+  async getRoutines(params: { page?: number; pageSize?: number } = {}): Promise<RoutinesPage> {
     const search = new URLSearchParams();
     if (params.page) search.set("page", String(params.page));
     if (params.pageSize) search.set("pageSize", String(params.pageSize));
     const data = await this.request(`/routines?${search.toString()}`);
-    return routineSchema.array().parse((data as { routines: unknown }).routines);
+    return routinesPageSchema.parse(data);
   }
 
-  async getRoutineFolders(): Promise<RoutineFolder[]> {
-    const data = await this.request("/routine_folders");
-    return routineFolderSchema.array().parse((data as { routine_folders: unknown }).routine_folders);
+  async getRoutineFolders(params: { page?: number; pageSize?: number } = {}): Promise<RoutineFoldersPage> {
+    const search = new URLSearchParams();
+    if (params.page) search.set("page", String(params.page));
+    if (params.pageSize) search.set("pageSize", String(params.pageSize));
+    const data = await this.request(`/routine_folders?${search.toString()}`);
+    return routineFoldersPageSchema.parse(data);
   }
 
-  async getExerciseTemplates(params: { page?: number; pageSize?: number } = {}): Promise<ExerciseTemplate[]> {
+  async getExerciseTemplates(params: { page?: number; pageSize?: number } = {}): Promise<ExerciseTemplatesPage> {
     const search = new URLSearchParams();
     if (params.page) search.set("page", String(params.page));
     if (params.pageSize) search.set("pageSize", String(params.pageSize));
     const data = await this.request(`/exercise_templates?${search.toString()}`);
-    return exerciseTemplateSchema.array().parse((data as { exercise_templates: unknown }).exercise_templates);
+    return exerciseTemplatesPageSchema.parse(data);
   }
 
   private async request(path: string, attempt = 0): Promise<unknown> {

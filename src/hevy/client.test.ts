@@ -18,6 +18,7 @@ describe("HevyClient", () => {
           {
             id: "w1",
             title: "Push day",
+            routine_id: null,
             description: null,
             start_time: "2026-01-01T10:00:00Z",
             end_time: "2026-01-01T11:00:00Z",
@@ -76,5 +77,16 @@ describe("HevyClient", () => {
 
     expect(count).toBe(42);
     expect(calls).toBe(3);
+  });
+
+  it("normalizes the no-new-events shape from /workouts/events into an empty events list", async () => {
+    // Hevy returns { page, page_count, workouts: [] } instead of { events: [] }
+    // when there are no new events for the given `since` — verified live.
+    const fetchFn = async () => jsonResponse({ page: 1, page_count: 1, workouts: [] });
+    const client = new HevyClient({ apiKey: "test-key", fetchFn });
+
+    const page = await client.getWorkoutEvents({ since: "2026-01-01T00:00:00Z" });
+
+    expect(page.events).toEqual([]);
   });
 });
