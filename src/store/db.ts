@@ -74,6 +74,11 @@ export class Store {
     return rows.map((row) => reviveWorkout(JSON.parse(row.data)));
   }
 
+  getWorkout(id: string): DomainWorkout | null {
+    const row = this.db.prepare("SELECT data FROM workouts WHERE id = ?").get(id) as { data: string } | undefined;
+    return row ? reviveWorkout(JSON.parse(row.data)) : null;
+  }
+
   upsertRoutine(routine: DomainRoutine): void {
     this.db
       .prepare(
@@ -99,6 +104,21 @@ export class Store {
          ON CONFLICT(id) DO UPDATE SET data = excluded.data`,
       )
       .run(template.id, JSON.stringify(template));
+  }
+
+  listRoutines(): DomainRoutine[] {
+    const rows = this.db.prepare("SELECT data FROM routines ORDER BY updated_at DESC").all() as { data: string }[];
+    return rows.map((row) => reviveRoutine(JSON.parse(row.data)));
+  }
+
+  getRoutine(id: string): DomainRoutine | null {
+    const row = this.db.prepare("SELECT data FROM routines WHERE id = ?").get(id) as { data: string } | undefined;
+    return row ? reviveRoutine(JSON.parse(row.data)) : null;
+  }
+
+  listExerciseTemplates(): DomainExerciseTemplate[] {
+    const rows = this.db.prepare("SELECT data FROM exercise_templates").all() as { data: string }[];
+    return rows.map((row) => JSON.parse(row.data) as DomainExerciseTemplate);
   }
 
   getSyncState(key: string): string | null {
@@ -130,4 +150,8 @@ function reviveWorkout(raw: DomainWorkout): DomainWorkout {
     updatedAt: new Date(raw.updatedAt),
     createdAt: new Date(raw.createdAt),
   };
+}
+
+function reviveRoutine(raw: DomainRoutine): DomainRoutine {
+  return { ...raw, updatedAt: new Date(raw.updatedAt), createdAt: new Date(raw.createdAt) };
 }
