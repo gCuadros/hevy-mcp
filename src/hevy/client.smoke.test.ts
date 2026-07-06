@@ -22,12 +22,17 @@ describe.skipIf(!apiKey)("HevyClient (real API)", () => {
   });
 
   it("fetches routine folders matching the schema", async () => {
-    const folders = await client.getRoutineFolders();
-    expect(Array.isArray(folders)).toBe(true);
+    const page = await client.getRoutineFolders({ page: 1, pageSize: 5 });
+    expect(Array.isArray(page.routine_folders)).toBe(true);
   });
 
   it("fetches exercise templates matching the schema", async () => {
-    const templates = await client.getExerciseTemplates({ page: 1, pageSize: 5 });
-    expect(templates.length).toBeGreaterThan(0);
+    const page = await client.getExerciseTemplates({ page: 1, pageSize: 5 });
+    expect(page.exercise_templates.length).toBeGreaterThan(0);
+  });
+
+  it("fetches workout events matching the schema", async () => {
+    const page = await client.getWorkoutEvents({ since: "2020-01-01T00:00:00Z", page: 1, pageSize: 5 });
+    expect(page.events.length).toBeGreaterThan(0);
   });
 });
