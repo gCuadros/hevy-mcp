@@ -6,3 +6,4 @@ dist/
 *.sqlite3
 .tokensave/
 .DS_Store
+PLAN.md
