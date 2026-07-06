@@ -2,7 +2,7 @@
 
 MCP Server para Hevy (app de entrenamiento), modelo "conector estilo Strava": server remoto oficial-style, read-only en v1, con analítica computada desde cache.
 
-Plan completo (fuente de verdad, iterar ahí antes que acá): `~/Documents/hevy-mcp-plan.md`
+Plan completo (fuente de verdad, iterar ahí antes que acá): `PLAN.md` (raíz del repo, deliberadamente fuera de git — es la copia de trabajo de `~/Documents/hevy-mcp-plan.md`).
 
 ## Principio rector
 
