@@ -1,0 +1,20 @@
+{
+  "name": "hevy-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "MCP server for Hevy — read-only analytics connector, Strava-style",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "yarn@1.22.22",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.31.0"
+  }
+}
