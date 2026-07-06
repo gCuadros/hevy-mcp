@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(yarn test)",
+      "Bash(yarn test:*)",
+      "Bash(yarn build)",
+      "Bash(yarn typecheck)",
+      "Bash(yarn lint)",
+      "Bash(yarn vitest*)",
+      "Bash(git status)",
+      "Bash(git status:*)",
+      "Bash(git diff)",
+      "Bash(git diff:*)",
+      "Bash(git log)",
+      "Bash(git log:*)",
+      "Bash(git branch)",
+      "Bash(git branch:*)",
+      "Bash(gh pr list*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr status*)"
+    ]
+  }
+}

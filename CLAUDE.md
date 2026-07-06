@@ -19,6 +19,7 @@ El MCP calcula números; el LLM emite juicios. Toda la analítica (e1RM, volumen
 
 ## Convenciones
 
+- **Gestor de paquetes: yarn (classic, v1).** No usar npm ni npx — `yarn add`, `yarn <script>`, `yarn dlx` en su lugar.
 - TypeScript strict, `@modelcontextprotocol/sdk`, zod para validación de schemas del API, better-sqlite3 para cache local.
 - Tests con vitest. `engine/` se testea con fixtures contra cálculo manual (e1RM Epley/Brzycki, volumen, PRs, comparación de períodos). `adapter.ts` se testea con datos sucios/incompletos de la API real.
 - Descripciones de tools son prescriptivas: explican *cuándo* usar la tool, no solo qué hace.
@@ -27,4 +28,4 @@ El MCP calcula números; el LLM emite juicios. Toda la analítica (e1RM, volumen
 
 - **Una rama por iteración/fase del plan**, PR en GitHub para mergear a `main`. Nunca commitear directo a `main`.
 - **Nunca** agregar trailer `Co-Authored-By` de Claude — los commits de este repo son 100% del usuario.
-- `CHANGELOG.md` sigue [Keep a Changelog](https://keepachangelog.com/) — cada PR que aporte un cambio user-facing (tool nueva, fix, breaking change) suma una entrada en `[Unreleased]` antes de mergear. Crítico por ser proyecto open source.
+- **Changelog vía [Changesets](https://github.com/changesets/changesets).** Cada PR con un cambio user-facing (tool nueva, fix, breaking change) corre `npm run changeset` y commitea el archivo generado en `.changeset/`. `CHANGELOG.md` se regenera solo al hacer `npm run version` — no editarlo a mano.
