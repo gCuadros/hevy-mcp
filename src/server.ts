@@ -1,7 +1,16 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { formatToolResult } from "./format.js";
+import { registerPrompts } from "./prompts.js";
 import { buildResources } from "./resources.js";
+import {
+  comparePeriodsTool,
+  getConsistency,
+  getProgress,
+  getRecords,
+  getVolumeReport,
+  type AnalyticsDeps,
+} from "./tools/analytics.js";
 import {
   getExerciseHistory,
   getRoutine,
@@ -13,7 +22,12 @@ import {
 } from "./tools/read.js";
 import { runHealthCheck, runSync, type ToolDeps } from "./tools/sync.js";
 
-type Deps = ToolDeps & ReadDeps;
+type Deps = ToolDeps & ReadDeps & AnalyticsDeps;
+
+function ambiguousOrNotFound(subject: string, result: { status: "ambiguous" | "not-found"; candidates?: unknown }) {
+  if (result.status === "not-found") return formatToolResult(`No exercise found matching "${subject}"`, result, true);
+  return formatToolResult(`"${subject}" is ambiguous — retry with an exact ID`, result, true);
+}
 
 /** Transport-agnostic McpServer: same instance is shared by stdio.ts and http.ts. */
 export function createServer(deps: Deps): McpServer {
@@ -152,6 +166,86 @@ export function createServer(deps: Deps): McpServer {
       return formatToolResult(`${result.history.length} session(s) for ${result.template.title}`, result);
     },
   );
+
+  server.registerTool(
+    "get-progress",
+    {
+      title: "Get exercise progress",
+      description:
+        "Returns the estimated-1RM trend over time (best set per session, Epley by default) for a given exercise. Use this to answer 'have I progressed on X'. Accepts a human name or template ID; ambiguous names return candidates instead of guessing.",
+      inputSchema: {
+        exercise: z.string().describe("Exercise name or template ID"),
+        formula: z.enum(["epley", "brzycki"]).optional().describe("e1RM formula (default epley)"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ exercise, formula }) => {
+      const result = getProgress(deps, { exercise, formula });
+      if (result.status !== "resolved") return ambiguousOrNotFound(exercise, result);
+      return formatToolResult(`${result.progress.length} session(s) with an e1RM for ${result.template.title}`, result);
+    },
+  );
+
+  server.registerTool(
+    "get-records",
+    {
+      title: "Get exercise records",
+      description:
+        "Returns PRs (heaviest weight for at least 1/3/5/8 reps) for a given exercise. Accepts a human name or template ID; ambiguous names return candidates instead of guessing.",
+      inputSchema: { exercise: z.string().describe("Exercise name or template ID") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ exercise }) => {
+      const result = getRecords(deps, { exercise });
+      if (result.status !== "resolved") return ambiguousOrNotFound(exercise, result);
+      return formatToolResult(`Records for ${result.template.title}`, result);
+    },
+  );
+
+  server.registerTool(
+    "get-volume-report",
+    {
+      title: "Get volume report",
+      description: "Effective sets and tonnage per muscle group per week, across all cached workouts. Use this to spot under- or over-trained muscle groups.",
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const result = getVolumeReport(deps);
+      return formatToolResult(`${result.weeks.length} muscle-group/week bucket(s)`, result);
+    },
+  );
+
+  server.registerTool(
+    "get-consistency",
+    {
+      title: "Get consistency",
+      description: "Training frequency, current streak, and longest gap between workouts, across all cached workouts.",
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const result = getConsistency(deps);
+      return formatToolResult(`${result.workoutCount} workout(s), current streak ${result.currentStreakWeeks} week(s)`, result);
+    },
+  );
+
+  server.registerTool(
+    "compare-periods",
+    {
+      title: "Compare periods",
+      description: "Compares workout count/volume/tonnage for a date range against the immediately preceding period of equal length.",
+      inputSchema: {
+        from: z.string().describe("ISO date/time: start of the period to evaluate"),
+        to: z.string().describe("ISO date/time: end of the period to evaluate"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ from, to }) => {
+      const result = comparePeriodsTool(deps, { from, to });
+      return formatToolResult(`Current: ${result.current.workoutCount} workout(s) vs previous: ${result.previous.workoutCount}`, result);
+    },
+  );
+
+  registerPrompts(server);
 
   server.registerResource("profile", "hevy://profile", { title: "Cache profile", mimeType: "application/json" }, (uri) => ({
     contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(buildResources(deps).profile) }],
