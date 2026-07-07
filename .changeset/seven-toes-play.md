@@ -1,5 +1,0 @@
----
-"hevy-mcp": patch
----
-
-foundations
