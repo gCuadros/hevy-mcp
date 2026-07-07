@@ -1,13 +1,30 @@
 {
-  "name": "hevy-mcp",
-  "version": "0.0.0",
+  "name": "hevy-coach-mcp",
+  "version": "0.1.0",
   "private": true,
   "description": "MCP server for Hevy — read-only analytics connector, Strava-style",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "hevy-mcp": "./dist/stdio.js"
+    "hevy-coach-mcp": "./dist/stdio.js"
   },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gCuadros/hevy-mcp.git"
+  },
+  "homepage": "https://github.com/gCuadros/hevy-mcp#readme",
+  "bugs": "https://github.com/gCuadros/hevy-mcp/issues",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "hevy",
+    "fitness",
+    "workout",
+    "analytics"
+  ],
   "packageManager": "yarn@1.22.22",
   "engines": {
     "node": ">=22"
