@@ -31,7 +31,7 @@ function ambiguousOrNotFound(subject: string, result: { status: "ambiguous" | "n
 
 /** Transport-agnostic McpServer: same instance is shared by stdio.ts and http.ts. */
 export function createServer(deps: Deps): McpServer {
-  const server = new McpServer({ name: "hevy-mcp", version: "0.0.0" });
+  const server = new McpServer({ name: "hevy-coach-mcp", version: "0.0.0" });
 
   server.registerTool(
     "health-check",
