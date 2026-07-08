@@ -1,23 +1,23 @@
-import type { Store } from "./store/db.js";
+import type { HevyClient } from "./hevy/client.js";
+import { fetchAllExerciseTemplates, fetchAllRoutines, fetchAllWorkouts } from "./hevy/fetchAll.js";
 
 export interface ResourceDeps {
-  store: Store;
+  client: HevyClient;
 }
 
 /**
- * hevy:// resources: cheap, cache-only snapshots for a client to read without
- * a tool call. None returns full history — that's what filtered tools are for.
+ * hevy:// resources: cheap, live snapshots for a client to read without a
+ * tool call. None returns full history — that's what filtered tools are for.
  */
-export function buildResources(deps: ResourceDeps) {
-  const workouts = deps.store.listWorkouts();
-  const routines = deps.store.listRoutines();
-  const exerciseTemplates = deps.store.listExerciseTemplates();
+export async function buildResources(deps: ResourceDeps) {
+  const workouts = await fetchAllWorkouts(deps.client);
+  const routines = await fetchAllRoutines(deps.client);
+  const exerciseTemplates = await fetchAllExerciseTemplates(deps.client);
 
   const profile = {
-    cachedWorkoutCount: workouts.length,
+    workoutCount: workouts.length,
     firstWorkoutAt: workouts[0]?.startTime.toISOString() ?? null,
     lastWorkoutAt: workouts.at(-1)?.startTime.toISOString() ?? null,
-    lastSyncedAt: deps.store.getSyncState("last_synced_at"),
   };
 
   const routinesSummary = routines.map((routine) => ({
@@ -34,9 +34,9 @@ export function buildResources(deps: ResourceDeps) {
   }));
 
   const statsSummary = {
-    cachedWorkoutCount: workouts.length,
-    cachedRoutineCount: routines.length,
-    cachedExerciseTemplateCount: exerciseTemplates.length,
+    workoutCount: workouts.length,
+    routineCount: routines.length,
+    exerciseTemplateCount: exerciseTemplates.length,
   };
 
   const recentWorkouts = workouts

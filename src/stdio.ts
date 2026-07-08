@@ -3,13 +3,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConfig } from "./config.js";
 import { HevyClient } from "./hevy/client.js";
 import { createServer } from "./server.js";
-import { Store } from "./store/db.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const client = new HevyClient({ apiKey: config.hevyApiKey });
-  const store = new Store(config.dbPath);
-  const server = createServer({ client, store });
+  const server = createServer({ client });
   await server.connect(new StdioServerTransport());
 }
 

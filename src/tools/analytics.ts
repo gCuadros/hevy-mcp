@@ -4,6 +4,7 @@ import { bestSetE1rm, type E1rmFormula } from "../engine/e1rm.js";
 import { buildMuscleGroupResolver } from "../engine/muscle-map.js";
 import { recordsByBracket, type RecordEntry, type RepBracket } from "../engine/records.js";
 import { weeklyVolumeByMuscleGroup, type WeeklyMuscleVolume } from "../engine/volume.js";
+import { fetchAllExerciseTemplates, fetchAllWorkouts } from "../hevy/fetchAll.js";
 import { resolveExercise, type ExerciseCandidate, type ReadDeps } from "./read.js";
 
 export type AnalyticsDeps = ReadDeps;
@@ -22,17 +23,18 @@ export type GetProgressResult =
   | { status: "not-found" };
 
 /** e1RM trend over time (best set per session) for a given exercise. */
-export function getProgress(
+export async function getProgress(
   deps: AnalyticsDeps,
   input: { exercise: string; formula?: E1rmFormula | undefined },
-): GetProgressResult {
-  const resolved = resolveExercise(deps, input.exercise);
+): Promise<GetProgressResult> {
+  const resolved = await resolveExercise(deps, input.exercise);
   if (resolved.status !== "resolved") return resolved;
 
   const formula = input.formula ?? "epley";
   const progress: ProgressPoint[] = [];
 
-  for (const workout of deps.store.listWorkouts()) {
+  const workouts = await fetchAllWorkouts(deps.client);
+  for (const workout of workouts) {
     for (const exercise of workout.exercises) {
       if (exercise.exerciseTemplateId !== resolved.template.id) continue;
       const best = bestSetE1rm(exercise.sets, formula);
@@ -62,17 +64,16 @@ export type GetRecordsResult =
   | { status: "not-found" };
 
 /** PRs per rep bracket (1/3/5/8RM) for a given exercise. */
-export function getRecords(deps: AnalyticsDeps, input: { exercise: string }): GetRecordsResult {
-  const resolved = resolveExercise(deps, input.exercise);
+export async function getRecords(deps: AnalyticsDeps, input: { exercise: string }): Promise<GetRecordsResult> {
+  const resolved = await resolveExercise(deps, input.exercise);
   if (resolved.status !== "resolved") return resolved;
 
-  const sessions = deps.store
-    .listWorkouts()
-    .flatMap((workout) =>
-      workout.exercises
-        .filter((exercise) => exercise.exerciseTemplateId === resolved.template.id)
-        .map((exercise) => ({ date: workout.startTime.toISOString(), workoutId: workout.id, sets: exercise.sets })),
-    );
+  const workouts = await fetchAllWorkouts(deps.client);
+  const sessions = workouts.flatMap((workout) =>
+    workout.exercises
+      .filter((exercise) => exercise.exerciseTemplateId === resolved.template.id)
+      .map((exercise) => ({ date: workout.startTime.toISOString(), workoutId: workout.id, sets: exercise.sets })),
+  );
 
   return {
     status: "resolved",
@@ -85,22 +86,25 @@ export interface GetVolumeReportResult {
   weeks: WeeklyMuscleVolume[];
 }
 
-/** Effective sets and tonnage per muscle group per week, across all cached workouts. */
-export function getVolumeReport(deps: AnalyticsDeps): GetVolumeReportResult {
-  const templates = deps.store.listExerciseTemplates();
+/** Effective sets and tonnage per muscle group per week, across all workouts. */
+export async function getVolumeReport(deps: AnalyticsDeps): Promise<GetVolumeReportResult> {
+  const templates = await fetchAllExerciseTemplates(deps.client);
   const muscleGroupOf = buildMuscleGroupResolver(templates);
-  const sessions = deps.store.listWorkouts().map((workout) => ({ startTime: workout.startTime, exercises: workout.exercises }));
+  const workouts = await fetchAllWorkouts(deps.client);
+  const sessions = workouts.map((workout) => ({ startTime: workout.startTime, exercises: workout.exercises }));
 
   return { weeks: weeklyVolumeByMuscleGroup(sessions, muscleGroupOf) };
 }
 
-/** Frequency, current streak and longest gap across all cached workouts. */
-export function getConsistency(deps: AnalyticsDeps): ConsistencyReport {
-  return computeConsistency(deps.store.listWorkouts().map((workout) => workout.startTime));
+/** Frequency, current streak and longest gap across all workouts. */
+export async function getConsistency(deps: AnalyticsDeps): Promise<ConsistencyReport> {
+  const workouts = await fetchAllWorkouts(deps.client);
+  return computeConsistency(workouts.map((workout) => workout.startTime));
 }
 
 /** Volume/workout-count diff between a period and the immediately preceding period of equal length. */
-export function comparePeriodsTool(deps: AnalyticsDeps, input: { from: string; to: string }): PeriodComparison {
-  const sessions = deps.store.listWorkouts().map((workout) => ({ startTime: workout.startTime, exercises: workout.exercises }));
+export async function comparePeriodsTool(deps: AnalyticsDeps, input: { from: string; to: string }): Promise<PeriodComparison> {
+  const workouts = await fetchAllWorkouts(deps.client);
+  const sessions = workouts.map((workout) => ({ startTime: workout.startTime, exercises: workout.exercises }));
   return comparePeriods(sessions, new Date(input.from), new Date(input.to));
 }

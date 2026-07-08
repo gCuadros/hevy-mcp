@@ -1,6 +1,6 @@
 # hevy-mcp
 
-MCP Server para Hevy (app de entrenamiento), modelo "conector estilo Strava": server remoto oficial-style, read-only en v1, con analítica computada desde cache.
+MCP Server para Hevy (app de entrenamiento), modelo "conector estilo Strava": server remoto oficial-style, read-only en v1, con analítica computada en vivo sobre datos pedidos a Hevy en cada request (sin cache ni base de datos — decisión 2026-07-08, ver más abajo).
 
 Plan completo (fuente de verdad, iterar ahí antes que acá): `PLAN.md` (raíz del repo, deliberadamente fuera de git — es la copia de trabajo de `~/Documents/hevy-mcp-plan.md`).
 
@@ -8,11 +8,13 @@ Plan completo (fuente de verdad, iterar ahí antes que acá): `PLAN.md` (raíz d
 
 El MCP calcula números; el LLM emite juicios. Toda la analítica (e1RM, volumen, PRs, consistencia) vive en `engine/` como librería pura, testeada con fixtures, sin I/O.
 
+**Sin cache ni base de datos (decisión 2026-07-08).** Cada tool que necesita "todos los workouts/rutinas/templates" los pide en vivo a Hevy (paginado, `hevy/fetchAll.ts`), sin persistir nada en ningún sitio. Motivo: un MCP no se consulta continuamente como una app — Hevy ya resuelve el almacenamiento, no tiene sentido duplicarlo. Contrapartida asumida: llamadas repetidas a Hevy entre tools independientes dentro de la misma conversación (sin memoización cross-call), y latencia mayor en analítica que escanea todo el historial. Esto aplica a **ambos transportes** (stdio y HTTP) — no solo simplifica el conector remoto, elimina la necesidad de Postgres/vault de cache y hace el servidor remoto multi-tenant seguro por construcción (no hay nada que aislar entre usuarios, porque no se guarda nada).
+
 ## Decisiones de arquitectura
 
-- **Repo simple, no monorepo.** Un solo `package.json`, un tsconfig, un vitest. Dos entrypoints del mismo paquete: `src/stdio.ts` (bin de `npx hevy-coach-mcp`, API key por env var) y `src/http.ts` (server remoto: OAuth 2.1 + PKCE, sirve `/connect` y `/docs`). Ambos comparten `server.ts`, `engine/`, `store/`, `hevy/`.
+- **Repo simple, no monorepo.** Un solo `package.json`, un tsconfig, un vitest. Dos entrypoints del mismo paquete: `src/stdio.ts` (bin de `npx hevy-coach-mcp`, API key por env var) y `src/http.ts` (server remoto: OAuth 2.1 + PKCE, sirve `/connect`). Ambos comparten `server.ts`, `engine/`, `hevy/`.
 - **Nombre del paquete npm: `hevy-coach-mcp`** (no `hevy-mcp`, ya cogido por otro autor; ni `hevy-mcp-server`, también cogido — verificado en vivo 2026-07-07). El repo de GitHub sigue llamándose `hevy-mcp`.
-- **v1 es solo lectura + analítica.** Sin escrituras irreversibles. La única excepción es `sync` (tool), que solo escribe en la cache propia (SQLite local / Postgres remoto tras la misma interfaz `store/db.ts`).
+- **v1 es solo lectura + analítica.** Sin escrituras irreversibles. No hay tool `sync` — no hay nada que sincronizar (ver "sin cache" más arriba).
 - **API de Hevy:** requiere Hevy PRO + API key (header `api-key`). Sin endpoint DELETE en v1 (irrelevante, read-only).
 - Todas las tools son `readOnlyHint: true`. Aceptan nombres humanos de ejercicios (desambiguación de IDs interna). Ningún resource devuelve historial completo — eso va en tools con filtros.
 - Errores accionables: 401 → mensaje para regenerar key; key revocada → estado `needs-reauth`, nunca fallo silencioso.
@@ -21,7 +23,7 @@ El MCP calcula números; el LLM emite juicios. Toda la analítica (e1RM, volumen
 ## Convenciones
 
 - **Gestor de paquetes: yarn (classic, v1).** No usar npm ni npx — `yarn add`, `yarn <script>`, `yarn dlx` en su lugar.
-- TypeScript strict, `@modelcontextprotocol/sdk`, zod para validación de schemas del API, better-sqlite3 para cache local.
+- TypeScript strict, `@modelcontextprotocol/sdk`, zod para validación de schemas del API.
 - Tests con vitest. `engine/` se testea con fixtures contra cálculo manual (e1RM Epley/Brzycki, volumen, PRs, comparación de períodos). `adapter.ts` se testea con datos sucios/incompletos de la API real.
 - Descripciones de tools son prescriptivas: explican *cuándo* usar la tool, no solo qué hace.
 

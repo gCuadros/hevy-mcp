@@ -5,10 +5,8 @@ import { StreamableHTTPServerTransport, type StreamableHTTPServerTransportOption
 import { authorizationServerMetadata, protectedResourceMetadata } from "./auth/metadata.js";
 import { handleConnectSubmit, handleTokenRequest, parseAuthorizeParams, renderConnectPage, type TokenRequestBody } from "./auth/oauth.js";
 import { loadSealingKeys, unsealAccessToken, TokenError, type SealingKey } from "./auth/token.js";
-import { loadConfig } from "./config.js";
 import { HevyClient } from "./hevy/client.js";
 import { createServer } from "./server.js";
-import { Store } from "./store/db.js";
 
 const ACTIVE_KID = process.env.TOKEN_SEALING_ACTIVE_KID ?? "v1";
 
@@ -47,22 +45,17 @@ async function validateApiKey(apiKey: string): Promise<boolean> {
 }
 
 /**
- * Bearer-token gated MCP endpoint. The Hevy client is built from the
- * authenticated user's key (sealed in their access token), so this part is
- * fully multi-tenant correct. The cache store is NOT yet tenant-isolated —
- * it's still the single local SQLite file from stdio.ts/f5.11. That's the
- * known gap closed by f5/postgres-store (per-user DEK derived from the
- * user's own key, so the cache can't leak across tenants either).
+ * Bearer-token gated MCP endpoint. No cache, no database — every tool call
+ * fetches live from Hevy using the authenticated user's own key (sealed in
+ * their access token). Multi-tenant safe by construction: nothing is
+ * persisted anywhere on this server, so there's no tenant data to isolate.
  */
 async function handleMcpRequest(req: IncomingMessage, res: ServerResponse, hevyApiKey: string): Promise<void> {
-  const config = loadConfig({ ...process.env, HEVY_API_KEY: hevyApiKey });
   const client = new HevyClient({ apiKey: hevyApiKey });
-  const store = new Store(config.dbPath);
-  const server = createServer({ client, store });
+  const server = createServer({ client });
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined } as unknown as StreamableHTTPServerTransportOptions);
 
   res.on("close", () => {
-    store.close();
     void server.close();
     void transport.close();
   });
