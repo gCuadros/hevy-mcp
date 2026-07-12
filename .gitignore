@@ -7,3 +7,4 @@ dist/
 .tokensave/
 .DS_Store
 PLAN.md
+.vercel

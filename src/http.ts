@@ -181,17 +181,25 @@ async function route(req: IncomingMessage, res: ServerResponse, keys: SealingKey
   res.writeHead(404).end();
 }
 
-function main(): void {
+/**
+ * Entrypoint shared by the local `node dist/http.js` dev server and the
+ * Vercel serverless function (api/handler.ts) — same request handling
+ * either way, since there's no per-process state to set up (sealing keys
+ * are just env vars, re-read per request; nothing else persists).
+ */
+export async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const { keys } = loadSealingKeys(process.env, ACTIVE_KID);
+  try {
+    await route(req, res, keys);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    if (!res.headersSent) res.writeHead(500).end();
+  }
+}
+
+function main(): void {
   const port = Number(process.env.PORT ?? 3000);
-
-  const httpServer = createHttpServer((req, res) => {
-    route(req, res, keys).catch((error: unknown) => {
-      console.error(error instanceof Error ? error.message : error);
-      if (!res.headersSent) res.writeHead(500).end();
-    });
-  });
-
+  const httpServer = createHttpServer((req, res) => void handleRequest(req, res));
   httpServer.listen(port, () => {
     console.error(`hevy-coach-mcp listening on :${port}`);
   });
