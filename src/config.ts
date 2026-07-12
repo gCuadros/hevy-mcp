@@ -1,6 +1,5 @@
 export interface Config {
   hevyApiKey: string;
-  dbPath: string;
 }
 
 export class ConfigError extends Error {
@@ -17,8 +16,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       "HEVY_API_KEY is not set. Get one from Hevy → Settings → API and pass it as an env var.",
     );
   }
-  return {
-    hevyApiKey,
-    dbPath: env.HEVY_MCP_DB_PATH ?? "hevy-mcp.sqlite",
-  };
+  return { hevyApiKey };
 }

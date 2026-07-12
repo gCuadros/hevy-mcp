@@ -1,8 +1,10 @@
+import { toDomainWorkout } from "../hevy/adapter.js";
+import type { HevyClient } from "../hevy/client.js";
+import { fetchAllExerciseTemplates, fetchAllRoutines, fetchAllWorkouts } from "../hevy/fetchAll.js";
 import type { DomainExerciseTemplate, DomainRoutine, DomainWorkout } from "../domain/types.js";
-import type { Store } from "../store/db.js";
 
 export interface ReadDeps {
-  store: Store;
+  client: HevyClient;
 }
 
 function summarizeWorkout(workout: DomainWorkout) {
@@ -23,13 +25,13 @@ export interface GetWorkoutsInput {
   limit?: number | undefined;
 }
 
-export function getWorkouts(deps: ReadDeps, input: GetWorkoutsInput = {}) {
+export async function getWorkouts(deps: ReadDeps, input: GetWorkoutsInput = {}) {
   const from = input.from ? new Date(input.from) : null;
   const to = input.to ? new Date(input.to) : null;
   const limit = input.limit ?? 20;
 
-  const workouts = deps.store
-    .listWorkouts()
+  const allWorkouts = await fetchAllWorkouts(deps.client);
+  const workouts = allWorkouts
     .filter((workout) => (!from || workout.startTime >= from) && (!to || workout.startTime <= to))
     .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
     .slice(0, limit);
@@ -37,20 +39,26 @@ export function getWorkouts(deps: ReadDeps, input: GetWorkoutsInput = {}) {
   return { workouts: workouts.map(summarizeWorkout) };
 }
 
-export function getWorkout(deps: ReadDeps, input: { id: string }): DomainWorkout | null {
-  return deps.store.getWorkout(input.id);
+export async function getWorkout(deps: ReadDeps, input: { id: string }): Promise<DomainWorkout | null> {
+  try {
+    return toDomainWorkout(await deps.client.getWorkout(input.id));
+  } catch {
+    return null;
+  }
 }
 
 function summarizeRoutine(routine: DomainRoutine) {
   return { id: routine.id, title: routine.title, folderId: routine.folderId, exerciseCount: routine.exercises.length };
 }
 
-export function listRoutines(deps: ReadDeps) {
-  return { routines: deps.store.listRoutines().map(summarizeRoutine) };
+export async function listRoutines(deps: ReadDeps) {
+  const routines = await fetchAllRoutines(deps.client);
+  return { routines: routines.map(summarizeRoutine) };
 }
 
-export function getRoutine(deps: ReadDeps, input: { id: string }): DomainRoutine | null {
-  return deps.store.getRoutine(input.id);
+export async function getRoutine(deps: ReadDeps, input: { id: string }): Promise<DomainRoutine | null> {
+  const routines = await fetchAllRoutines(deps.client);
+  return routines.find((routine) => routine.id === input.id) ?? null;
 }
 
 export interface ExerciseCandidate {
@@ -63,8 +71,8 @@ function toCandidate(template: DomainExerciseTemplate): ExerciseCandidate {
   return { id: template.id, title: template.title, primaryMuscleGroup: template.primaryMuscleGroup };
 }
 
-export function searchExercises(deps: ReadDeps, input: { query: string }) {
-  const templates = deps.store.listExerciseTemplates();
+export async function searchExercises(deps: ReadDeps, input: { query: string }) {
+  const templates = await fetchAllExerciseTemplates(deps.client);
 
   const exactId = templates.find((template) => template.id === input.query);
   if (exactId) return { matches: [toCandidate(exactId)] };
@@ -84,8 +92,8 @@ export type ResolveExerciseResult =
  * Per contract #3: never guesses on ambiguity — callers get the candidate
  * list back and must disambiguate.
  */
-export function resolveExercise(deps: ReadDeps, ref: string): ResolveExerciseResult {
-  const templates = deps.store.listExerciseTemplates();
+export async function resolveExercise(deps: ReadDeps, ref: string): Promise<ResolveExerciseResult> {
+  const templates = await fetchAllExerciseTemplates(deps.client);
 
   const byId = templates.find((template) => template.id === ref);
   if (byId) return { status: "resolved", template: byId };
@@ -114,16 +122,16 @@ export type GetExerciseHistoryResult =
   | { status: "ambiguous"; candidates: ExerciseCandidate[] }
   | { status: "not-found" };
 
-export function getExerciseHistory(
+export async function getExerciseHistory(
   deps: ReadDeps,
   input: { exercise: string; limit?: number | undefined },
-): GetExerciseHistoryResult {
-  const resolved = resolveExercise(deps, input.exercise);
+): Promise<GetExerciseHistoryResult> {
+  const resolved = await resolveExercise(deps, input.exercise);
   if (resolved.status !== "resolved") return resolved;
 
   const limit = input.limit ?? 20;
-  const history = deps.store
-    .listWorkouts()
+  const allWorkouts = await fetchAllWorkouts(deps.client);
+  const history = allWorkouts
     .flatMap((workout) =>
       workout.exercises
         .filter((exercise) => exercise.exerciseTemplateId === resolved.template.id)

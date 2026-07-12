@@ -11,6 +11,7 @@ import {
   getVolumeReport,
   type AnalyticsDeps,
 } from "./tools/analytics.js";
+import { runHealthCheck, type ToolDeps } from "./tools/health.js";
 import {
   getExerciseHistory,
   getRoutine,
@@ -20,7 +21,6 @@ import {
   searchExercises,
   type ReadDeps,
 } from "./tools/read.js";
-import { runHealthCheck, runSync, type ToolDeps } from "./tools/sync.js";
 
 type Deps = ToolDeps & ReadDeps & AnalyticsDeps;
 
@@ -37,8 +37,7 @@ export function createServer(deps: Deps): McpServer {
     "health-check",
     {
       title: "Health check",
-      description:
-        "Checks whether the Hevy API key is valid and reports how fresh the local cache is. Call this first when troubleshooting a connection issue, or before trusting analytics numbers.",
+      description: "Checks whether the Hevy API key is valid. Call this first when troubleshooting a connection issue.",
       annotations: { readOnlyHint: true },
     },
     async () => {
@@ -48,30 +47,11 @@ export function createServer(deps: Deps): McpServer {
   );
 
   server.registerTool(
-    "sync",
-    {
-      title: "Sync workouts cache",
-      description:
-        "Fetches the latest workouts, routines, folders and exercise templates from Hevy into the local cache. Run this if health-check reports a stale cache, before asking analytics questions.",
-      annotations: { readOnlyHint: true },
-    },
-    async () => {
-      try {
-        const result = await runSync(deps);
-        return formatToolResult(`Sync (${result.mode}): ${result.workoutsUpserted} upserted, ${result.workoutsDeleted} deleted`, result);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return formatToolResult(message, { message }, true);
-      }
-    },
-  );
-
-  server.registerTool(
     "get-workouts",
     {
       title: "Get workouts",
       description:
-        "Lists cached workouts with a compact summary (title, dates, exercise/set counts), optionally filtered by date range. Use get-workout for full detail on a single one.",
+        "Lists workouts from Hevy with a compact summary (title, dates, exercise/set counts), optionally filtered by date range. Use get-workout for full detail on a single one. Fetches live from Hevy — no local cache.",
       inputSchema: {
         from: z.string().optional().describe("ISO date/time lower bound (inclusive)"),
         to: z.string().optional().describe("ISO date/time upper bound (inclusive)"),
@@ -80,7 +60,7 @@ export function createServer(deps: Deps): McpServer {
       annotations: { readOnlyHint: true },
     },
     async (input) => {
-      const result = getWorkouts(deps, input);
+      const result = await getWorkouts(deps, input);
       return formatToolResult(`Found ${result.workouts.length} workout(s)`, result);
     },
   );
@@ -89,13 +69,13 @@ export function createServer(deps: Deps): McpServer {
     "get-workout",
     {
       title: "Get workout",
-      description: "Fetches full detail (all exercises and sets) for a single cached workout by ID.",
+      description: "Fetches full detail (all exercises and sets) for a single workout by ID.",
       inputSchema: { id: z.string().describe("Workout ID, from get-workouts or hevy://workouts/recent") },
       annotations: { readOnlyHint: true },
     },
     async ({ id }) => {
-      const workout = getWorkout(deps, { id });
-      if (!workout) return formatToolResult(`Workout ${id} not found in cache`, { error: "not_found" }, true);
+      const workout = await getWorkout(deps, { id });
+      if (!workout) return formatToolResult(`Workout ${id} not found`, { error: "not_found" }, true);
       return formatToolResult(workout.title, workout);
     },
   );
@@ -104,11 +84,11 @@ export function createServer(deps: Deps): McpServer {
     "list-routines",
     {
       title: "List routines",
-      description: "Lists cached routines with a compact summary (title, folder, exercise count).",
+      description: "Lists routines with a compact summary (title, folder, exercise count).",
       annotations: { readOnlyHint: true },
     },
     async () => {
-      const result = listRoutines(deps);
+      const result = await listRoutines(deps);
       return formatToolResult(`Found ${result.routines.length} routine(s)`, result);
     },
   );
@@ -117,13 +97,13 @@ export function createServer(deps: Deps): McpServer {
     "get-routine",
     {
       title: "Get routine",
-      description: "Fetches full detail (all exercises and target sets) for a single cached routine by ID.",
+      description: "Fetches full detail (all exercises and target sets) for a single routine by ID.",
       inputSchema: { id: z.string().describe("Routine ID, from list-routines or hevy://routines") },
       annotations: { readOnlyHint: true },
     },
     async ({ id }) => {
-      const routine = getRoutine(deps, { id });
-      if (!routine) return formatToolResult(`Routine ${id} not found in cache`, { error: "not_found" }, true);
+      const routine = await getRoutine(deps, { id });
+      if (!routine) return formatToolResult(`Routine ${id} not found`, { error: "not_found" }, true);
       return formatToolResult(routine.title, routine);
     },
   );
@@ -138,7 +118,7 @@ export function createServer(deps: Deps): McpServer {
       annotations: { readOnlyHint: true },
     },
     async ({ query }) => {
-      const result = searchExercises(deps, { query });
+      const result = await searchExercises(deps, { query });
       return formatToolResult(`Found ${result.matches.length} match(es) for "${query}"`, result);
     },
   );
@@ -148,7 +128,7 @@ export function createServer(deps: Deps): McpServer {
     {
       title: "Get exercise history",
       description:
-        "Returns every set logged for a given exercise across cached workouts, most recent first. Accepts a human name or a template ID; if the name is ambiguous, returns candidates instead of guessing — call search-exercises or re-call with the exact ID.",
+        "Returns every set logged for a given exercise across all workouts, most recent first. Accepts a human name or a template ID; if the name is ambiguous, returns candidates instead of guessing — call search-exercises or re-call with the exact ID.",
       inputSchema: {
         exercise: z.string().describe("Exercise name or template ID"),
         limit: z.number().int().positive().optional().describe("Max history entries, most recent first (default 20)"),
@@ -156,7 +136,7 @@ export function createServer(deps: Deps): McpServer {
       annotations: { readOnlyHint: true },
     },
     async ({ exercise, limit }) => {
-      const result = getExerciseHistory(deps, { exercise, limit });
+      const result = await getExerciseHistory(deps, { exercise, limit });
       if (result.status === "not-found") {
         return formatToolResult(`No exercise found matching "${exercise}"`, result, true);
       }
@@ -180,7 +160,7 @@ export function createServer(deps: Deps): McpServer {
       annotations: { readOnlyHint: true },
     },
     async ({ exercise, formula }) => {
-      const result = getProgress(deps, { exercise, formula });
+      const result = await getProgress(deps, { exercise, formula });
       if (result.status !== "resolved") return ambiguousOrNotFound(exercise, result);
       return formatToolResult(`${result.progress.length} session(s) with an e1RM for ${result.template.title}`, result);
     },
@@ -196,7 +176,7 @@ export function createServer(deps: Deps): McpServer {
       annotations: { readOnlyHint: true },
     },
     async ({ exercise }) => {
-      const result = getRecords(deps, { exercise });
+      const result = await getRecords(deps, { exercise });
       if (result.status !== "resolved") return ambiguousOrNotFound(exercise, result);
       return formatToolResult(`Records for ${result.template.title}`, result);
     },
@@ -206,11 +186,11 @@ export function createServer(deps: Deps): McpServer {
     "get-volume-report",
     {
       title: "Get volume report",
-      description: "Effective sets and tonnage per muscle group per week, across all cached workouts. Use this to spot under- or over-trained muscle groups.",
+      description: "Effective sets and tonnage per muscle group per week, across all workouts. Use this to spot under- or over-trained muscle groups.",
       annotations: { readOnlyHint: true },
     },
     async () => {
-      const result = getVolumeReport(deps);
+      const result = await getVolumeReport(deps);
       return formatToolResult(`${result.weeks.length} muscle-group/week bucket(s)`, result);
     },
   );
@@ -219,11 +199,11 @@ export function createServer(deps: Deps): McpServer {
     "get-consistency",
     {
       title: "Get consistency",
-      description: "Training frequency, current streak, and longest gap between workouts, across all cached workouts.",
+      description: "Training frequency, current streak, and longest gap between workouts, across all workouts.",
       annotations: { readOnlyHint: true },
     },
     async () => {
-      const result = getConsistency(deps);
+      const result = await getConsistency(deps);
       return formatToolResult(`${result.workoutCount} workout(s), current streak ${result.currentStreakWeeks} week(s)`, result);
     },
   );
@@ -240,31 +220,31 @@ export function createServer(deps: Deps): McpServer {
       annotations: { readOnlyHint: true },
     },
     async ({ from, to }) => {
-      const result = comparePeriodsTool(deps, { from, to });
+      const result = await comparePeriodsTool(deps, { from, to });
       return formatToolResult(`Current: ${result.current.workoutCount} workout(s) vs previous: ${result.previous.workoutCount}`, result);
     },
   );
 
   registerPrompts(server);
 
-  server.registerResource("profile", "hevy://profile", { title: "Cache profile", mimeType: "application/json" }, (uri) => ({
-    contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(buildResources(deps).profile) }],
+  server.registerResource("profile", "hevy://profile", { title: "Profile summary", mimeType: "application/json" }, async (uri) => ({
+    contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify((await buildResources(deps)).profile) }],
   }));
 
-  server.registerResource("routines", "hevy://routines", { title: "Cached routines", mimeType: "application/json" }, (uri) => ({
-    contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(buildResources(deps).routines) }],
+  server.registerResource("routines", "hevy://routines", { title: "Routines", mimeType: "application/json" }, async (uri) => ({
+    contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify((await buildResources(deps)).routines) }],
   }));
 
-  server.registerResource("exercises", "hevy://exercises", { title: "Cached exercise templates", mimeType: "application/json" }, (uri) => ({
-    contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(buildResources(deps).exercises) }],
+  server.registerResource("exercises", "hevy://exercises", { title: "Exercise templates", mimeType: "application/json" }, async (uri) => ({
+    contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify((await buildResources(deps)).exercises) }],
   }));
 
   server.registerResource(
     "stats-summary",
     "hevy://stats/summary",
-    { title: "Cache stats summary", mimeType: "application/json" },
-    (uri) => ({
-      contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(buildResources(deps).statsSummary) }],
+    { title: "Stats summary", mimeType: "application/json" },
+    async (uri) => ({
+      contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify((await buildResources(deps)).statsSummary) }],
     }),
   );
 
@@ -272,8 +252,8 @@ export function createServer(deps: Deps): McpServer {
     "workouts-recent",
     "hevy://workouts/recent",
     { title: "10 most recent workouts", mimeType: "application/json" },
-    (uri) => ({
-      contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(buildResources(deps).recentWorkouts) }],
+    async (uri) => ({
+      contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify((await buildResources(deps)).recentWorkouts) }],
     }),
   );
 
