@@ -28,6 +28,8 @@ This works in **Claude Desktop** (`claude_desktop_config.json`), **Claude Code**
 
 Your API key stays local: it's read from the `HEVY_API_KEY` environment variable and never leaves your machine except in calls to Hevy's own API.
 
+There's also a hosted mode (OAuth, for Claude.ai and other clients that can't run a local process) — see [docs/CONNECTOR.md](docs/CONNECTOR.md) for both setups, example questions, and privacy details.
+
 ## First use
 
 Run `health-check` any time to confirm the connection. Every other tool fetches live from Hevy — there's nothing to sync or warm up first.
