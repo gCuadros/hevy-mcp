@@ -68,9 +68,34 @@ describe("renderConnectPage", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
+  it("carries every OAuth param through as a hidden field so the POST can rebuild the request", () => {
+    const html = renderConnectPage({ clientId: "cid", redirectUri: "https://x/cb", codeChallenge: "chal", state: "st" });
+    expect(html).toContain('<input type="hidden" name="client_id" value="cid">');
+    expect(html).toContain('<input type="hidden" name="redirect_uri" value="https://x/cb">');
+    expect(html).toContain('<input type="hidden" name="code_challenge" value="chal">');
+    expect(html).toContain('<input type="hidden" name="state" value="st">');
+  });
+
+  it("escapes a state crafted to break out of the hidden input", () => {
+    const html = renderConnectPage({ clientId: "c", redirectUri: "https://x/cb", codeChallenge: "cc", state: '"><script>alert(1)</script>' });
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&quot;&gt;&lt;script&gt;");
+  });
+
+  it("is mobile-readable: declares a viewport so embedded browsers don't render it zoomed out", () => {
+    const html = renderConnectPage({ clientId: "c", redirectUri: "https://x/cb", codeChallenge: "cc", state: undefined });
+    expect(html).toContain('<meta name="viewport" content="width=device-width, initial-scale=1">');
+  });
+
   it("shows the error message when provided", () => {
     const html = renderConnectPage({ clientId: "c", redirectUri: "https://x/cb", codeChallenge: "cc", state: undefined }, "bad key");
     expect(html).toContain("bad key");
+  });
+
+  it("keeps the hidden fields on the error render, so a retry doesn't lose the OAuth request", () => {
+    const html = renderConnectPage({ clientId: "cid", redirectUri: "https://x/cb", codeChallenge: "chal", state: "st" }, "bad key");
+    expect(html).toContain('<input type="hidden" name="client_id" value="cid">');
+    expect(html).toContain('<input type="hidden" name="code_challenge" value="chal">');
   });
 });
 
@@ -111,7 +136,7 @@ describe("handleTokenRequest — authorization_code grant", () => {
     );
 
     const result = await handleTokenRequest(
-      { grantType: "authorization_code", code, codeVerifier: verifier, redirectUri: "https://x/cb", refreshToken: undefined },
+      { grantType: "authorization_code", code, codeVerifier: verifier, redirectUri: "https://x/cb", refreshToken: undefined, clientId: undefined },
       keys,
       activeKid,
     );
@@ -134,7 +159,7 @@ describe("handleTokenRequest — authorization_code grant", () => {
       activeKid,
     );
     const result = await handleTokenRequest(
-      { grantType: "authorization_code", code, codeVerifier: "wrong-verifier", redirectUri: "https://x/cb", refreshToken: undefined },
+      { grantType: "authorization_code", code, codeVerifier: "wrong-verifier", redirectUri: "https://x/cb", refreshToken: undefined, clientId: undefined },
       keys,
       activeKid,
     );
@@ -150,11 +175,43 @@ describe("handleTokenRequest — authorization_code grant", () => {
       activeKid,
     );
     const result = await handleTokenRequest(
-      { grantType: "authorization_code", code, codeVerifier: verifier, redirectUri: "https://different/cb", refreshToken: undefined },
+      { grantType: "authorization_code", code, codeVerifier: verifier, redirectUri: "https://different/cb", refreshToken: undefined, clientId: undefined },
       keys,
       activeKid,
     );
     expect(result).toMatchObject({ error: "invalid_grant" });
+  });
+
+  it("rejects a client_id that isn't the one the code was issued to", async () => {
+    const { keys, activeKid } = testKeys();
+    const { verifier, challenge } = pkcePair();
+    const code = await sealAuthorizationCode(
+      { sub: "s1", hevyApiKey: "hevy-key", codeChallenge: challenge, redirectUri: "https://x/cb", clientId: "c" },
+      keys,
+      activeKid,
+    );
+    const result = await handleTokenRequest(
+      { grantType: "authorization_code", code, codeVerifier: verifier, redirectUri: "https://x/cb", refreshToken: undefined, clientId: "someone-else" },
+      keys,
+      activeKid,
+    );
+    expect(result).toMatchObject({ error: "invalid_grant" });
+  });
+
+  it("accepts a matching client_id", async () => {
+    const { keys, activeKid } = testKeys();
+    const { verifier, challenge } = pkcePair();
+    const code = await sealAuthorizationCode(
+      { sub: "s1", hevyApiKey: "hevy-key", codeChallenge: challenge, redirectUri: "https://x/cb", clientId: "c" },
+      keys,
+      activeKid,
+    );
+    const result = await handleTokenRequest(
+      { grantType: "authorization_code", code, codeVerifier: verifier, redirectUri: "https://x/cb", refreshToken: undefined, clientId: "c" },
+      keys,
+      activeKid,
+    );
+    expect("access_token" in result).toBe(true);
   });
 });
 
@@ -164,7 +221,7 @@ describe("handleTokenRequest — refresh_token grant", () => {
     const refreshToken = await sealRefreshToken({ sub: "s1", hevyApiKey: "hevy-key" }, keys, activeKid);
 
     const result = await handleTokenRequest(
-      { grantType: "refresh_token", code: undefined, codeVerifier: undefined, redirectUri: undefined, refreshToken },
+      { grantType: "refresh_token", code: undefined, codeVerifier: undefined, redirectUri: undefined, refreshToken, clientId: undefined },
       keys,
       activeKid,
     );
@@ -180,7 +237,7 @@ describe("handleTokenRequest — refresh_token grant", () => {
   it("rejects an invalid refresh token", async () => {
     const { keys, activeKid } = testKeys();
     const result = await handleTokenRequest(
-      { grantType: "refresh_token", code: undefined, codeVerifier: undefined, redirectUri: undefined, refreshToken: "garbage" },
+      { grantType: "refresh_token", code: undefined, codeVerifier: undefined, redirectUri: undefined, refreshToken: "garbage", clientId: undefined },
       keys,
       activeKid,
     );
@@ -192,7 +249,7 @@ describe("handleTokenRequest — unsupported grant_type", () => {
   it("rejects with unsupported_grant_type", async () => {
     const { keys, activeKid } = testKeys();
     const result = await handleTokenRequest(
-      { grantType: "password", code: undefined, codeVerifier: undefined, redirectUri: undefined, refreshToken: undefined },
+      { grantType: "password", code: undefined, codeVerifier: undefined, redirectUri: undefined, refreshToken: undefined, clientId: undefined },
       keys,
       activeKid,
     );
