@@ -14,7 +14,7 @@ El MCP calcula números; el LLM emite juicios. Toda la analítica (e1RM, volumen
 
 ## Decisiones de arquitectura
 
-- **Repo simple, no monorepo.** Un solo `package.json`, un tsconfig, un vitest. Dos entrypoints del mismo paquete: `src/stdio.ts` (bin de `npx hevy-coach-mcp`, API key por env var) y `src/http.ts` (server remoto: OAuth 2.1 + PKCE, sirve `/connect`). Ambos comparten `server.ts`, `engine/`, `hevy/`.
+- **Repo simple, no monorepo.** Un solo `package.json`, un tsconfig, un vitest. Dos entrypoints del mismo paquete: `src/stdio.ts` (bin de `npx hevy-coach-mcp`, API key por env var) y `src/http.ts` (server remoto: OAuth 2.1 + PKCE, sirve `/connect`). Ambos comparten `mcp-server.ts`, `engine/`, `hevy/`.
 - **Nombre del paquete npm: `hevy-coach-mcp`** (no `hevy-mcp`, ya cogido por otro autor; ni `hevy-mcp-server`, también cogido — verificado en vivo 2026-07-07). El repo de GitHub sigue llamándose `hevy-mcp`.
 - **v1 es solo lectura + analítica.** Sin escrituras irreversibles. No hay tool `sync` — no hay nada que sincronizar (ver "sin cache" más arriba).
 - **API de Hevy:** requiere Hevy PRO + API key (header `api-key`). Sin endpoint DELETE en v1 (irrelevante, read-only).

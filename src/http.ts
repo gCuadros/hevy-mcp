@@ -13,7 +13,7 @@ import {
 } from "./auth/oauth.js";
 import { loadSealingKeys, unsealAccessToken, TokenError, type SealingKey } from "./auth/token.js";
 import { HevyClient } from "./hevy/client.js";
-import { createServer } from "./server.js";
+import { createServer } from "./mcp-server.js";
 
 const ACTIVE_KID = process.env.TOKEN_SEALING_ACTIVE_KID ?? "v1";
 const MAX_FORM_BODY_BYTES = 16 * 1024;
