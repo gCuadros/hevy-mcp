@@ -291,20 +291,70 @@ mapa muscular. Tools: `get-progress`, `get-records`, `get-volume-report`,
 
 ---
 
-## 7. Lo siguiente, en orden
+## 7. Compatibilidad con clientes de IA
+
+**Objetivo: que funcione desde cualquier cliente de IA.** A nivel de código ya
+está resuelto — el servidor habla los dos transportes estándar de MCP (stdio y
+Streamable HTTP), así que cualquier cliente conforme puede conectarse. Lo único
+que cambia entre clientes es la sintaxis del fichero de configuración, y eso está
+documentado cliente a cliente en `docs/CONNECTOR.md`.
+
+Formatos verificados y documentados (2026-08-01): Claude Code, Claude Desktop,
+Claude.ai, ChatGPT, OpenCode (`opencode.json`, `command` como array y
+`environment` en vez de `env`), Codex CLI (`~/.codex/config.toml`, TOML), VS Code
+Copilot (`.vscode/mcp.json`, clave `servers` y `type` obligatorio), Cursor,
+Windsurf, más una sección genérica para el resto (Zed, Cline, Continue, Goose,
+Gemini CLI, LibreChat).
+
+### Pero hay dos bloqueos reales, y ninguno es de producto
+
+1. **El paquete no está publicado en npm.** Todos los snippets locales usan
+   `npx hevy-coach-mcp`, que hoy **no funciona para nadie salvo el autor** (que
+   apunta a su `dist/` local). Publicar en npm desbloquea de golpe *todos* los
+   clientes stdio: OpenCode, Codex, VS Code, Cursor, Zed, Cline, Goose, Gemini
+   CLI, Windsurf, Claude Desktop y Claude Code. Estaba aplazado; deja de tener
+   sentido aplazarlo si el objetivo es "cualquier cliente".
+2. **El servidor remoto no está desplegado.** **ChatGPT y Claude.ai no pueden
+   usar stdio en absoluto** — para ellos el modo remoto no es una alternativa,
+   es la única vía. Sin despliegue, ambos quedan fuera.
+
+Es decir: los dos pasos que quedaban como "difusión" son en realidad los que
+gobiernan la cobertura de clientes. Uno cubre los clientes de escritorio/terminal,
+el otro los de navegador.
+
+### Limitaciones conocidas por cliente
+
+- **ChatGPT:** las cuentas Free no admiten conectores custom; Plus y Pro sí, en
+  modo solo lectura (que es justo lo que es este servidor). Hace falta activar
+  *Developer mode* y habilitar el conector en cada conversación. Además, **Deep
+  Research no lo verá**: ese modo solo invoca tools llamadas `search` y `fetch`,
+  y este servidor expone tools de analítica. Añadir un par `search`/`fetch` sería
+  un cambio pequeño si algún día se quiere soporte de Deep Research — está en
+  backlog, sin hacer.
+- **Clientes remotos sin OAuth:** `/mcp` solo acepta access tokens emitidos por
+  su propio `/token` (se verifica con `unsealAccessToken`). **No** se puede pegar
+  la API key de Hevy en una cabecera `Authorization: Bearer` y saltarse el flujo.
+  Para esos clientes, la salida es el modo local. *Decisión abierta:* aceptar
+  también un bearer con la API key en crudo sería trivial y no empeora la
+  seguridad (esa key solo da lectura sobre la cuenta del propio usuario, y el
+  servidor no guarda nada), y simplificaría mucho los clientes de terminal. No se
+  ha implementado: es una decisión de producto, no un descuido.
+
+## 8. Lo siguiente, en orden
 
 1. **Subir `f6/docs` y abrir el PR.** El asistente no puede hacer push (no hay
    clave SSH en su sesión); lo ejecuta el autor:
    `git push -u origin f6/docs`
-2. **Desplegar en Vercel a mano**, con la cuenta personal, poniendo
-   `TOKEN_SEALING_KEY_v1`.
-3. **Sustituir los placeholders de URL** en `docs/CONNECTOR.md` y comprobar la
-   conexión remota desde Claude Code y desde Claude.ai.
-4. Vídeo, publicación en directorios, email a Hevy.
+2. **Publicar en npm** (`hevy-coach-mcp`). Desbloquea todos los clientes locales.
+3. **Desplegar en Vercel a mano**, con la cuenta personal, poniendo
+   `TOKEN_SEALING_KEY_v1`. Desbloquea ChatGPT y Claude.ai.
+4. **Sustituir los placeholders de URL** en `docs/CONNECTOR.md` y comprobar la
+   conexión remota desde Claude Code, Claude.ai y ChatGPT.
+5. Vídeo, publicación en directorios, email a Hevy.
 
 ---
 
-## 8. Convenciones de trabajo (importante para quien retome esto)
+## 9. Convenciones de trabajo (importante para quien retome esto)
 
 - **Gestor de paquetes: yarn classic (v1).** No usar `npm` ni `npx`: `yarn add`,
   `yarn <script>`, `yarn dlx`.
@@ -325,7 +375,7 @@ mapa muscular. Tools: `get-progress`, `get-records`, `get-volume-report`,
   a él.
 - Iterar en `PLAN.md` antes que en `CLAUDE.md` o en este documento.
 
-## 9. Estado del árbol de git
+## 10. Estado del árbol de git
 
 - Rama `main` en `9fb1eaf` (merge del PR #12).
 - Rama `f6/docs` con 2 commits sin push: `docs/CONNECTOR.md` + enlace en el
