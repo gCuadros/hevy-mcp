@@ -222,6 +222,13 @@ Nothing. Not your API key, not your workouts, not a session row.
 
 Your Hevy API key is encrypted (AES-256-GCM) directly *into* your OAuth access token, and the token is held by your MCP client, not by the server. On each request the server decrypts your key out of the token you just sent, calls Hevy with it, and forgets it when the request ends. There is no database, no cache, and no vault — so there is nothing to breach and nothing to isolate between users.
 
+Storing nothing has two consequences worth stating plainly rather than burying:
+
+- **The authorization code is not single-use.** OAuth says a code must be redeemed once and then invalidated; doing that requires remembering which codes have been spent, and this server remembers nothing. The code is instead a sealed token that simply expires after 60 seconds. Within that window it could in principle be replayed — but only by someone who already intercepted it *and* holds the PKCE verifier that your client generated and never transmitted. PKCE is what actually protects this exchange; the single-use rule is a second lock on the same door.
+- **The server's sealing key is a single point of failure.** Every token is encrypted with one key held in the deployment's environment. Anyone who obtains both that key and a live access token can read the Hevy API key inside it. There is no server-side revocation to fall back on, because there is no server-side record of your session — regenerating your API key in Hevy is the revocation mechanism, and it is immediate and total.
+
+Neither of these is fixable without adding the database this design exists to avoid. If you'd rather not accept them, use the local setup: it has no server, no tokens and no sealing key at all.
+
 ## Things to ask it
 
 - "Did I get stronger on bench press over the last 8 weeks?"
