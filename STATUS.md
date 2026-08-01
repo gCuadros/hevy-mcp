@@ -193,7 +193,8 @@ API no tiene endpoint DELETE. El conector se gana la confianza primero leyendo.
 ```
 src/
   stdio.ts        entrypoint local (bin de npx)
-  http.ts         entrypoint remoto: OAuth + /connect + /mcp
+  server.ts       entrypoint remoto: abre el puerto (lo que Vercel detecta)
+  http.ts         enrutado remoto: OAuth + /connect + /mcp
   mcp-server.ts   registro de tools/resources/prompts (compartido)
   config.ts       carga de configuración
   format.ts       formateo de salidas de tools
@@ -212,8 +213,6 @@ src/
     testFixtures.ts
   engine/         e1rm, volume, records, consistency, compare, muscle-map
   tools/          read, analytics, health
-api/handler.ts    función catch-all de Vercel → delega en src/http.ts
-vercel.json       rewrite de /(.*) a /api/handler
 docs/CONNECTOR.md página pública de conexión (en inglés)
 ```
 
@@ -258,7 +257,11 @@ mapa muscular. Tools: `get-progress`, `get-records`, `get-volume-report`,
 - ✅ #9 — sellado de tokens (JWE)
 - ✅ #10 — endpoints OAuth (`/authorize`, `/token`, `/register`, `.well-known/*`)
 - ✅ #11 — arquitectura live-fetch, sin cache
-- ✅ #12 — target serverless de Vercel (`api/handler.ts` + `vercel.json`)
+- ✅ #12 — target de Vercel: `src/server.ts` abre el puerto y Vercel lo detecta
+  como server entrypoint. Empezó siendo `api/handler.ts` + `vercel.json`, pero
+  Vercel no llegaba a mirar el directorio `api/`: elegía el builder de servidor
+  Node, buscaba un entrypoint en la raíz o en `src/` y fallaba con *No entrypoint
+  found*. En vez de pelearse con la detección, se le da lo que pide.
 - ⏳ **Pendiente: desplegar en Vercel.** Lo hace el autor a mano, con su cuenta
   personal. Variables de entorno necesarias en Vercel:
   - `TOKEN_SEALING_KEY_v1` — 32 bytes en base64. Generar con:

@@ -1,6 +1,5 @@
-#!/usr/bin/env node
 import { randomUUID } from "node:crypto";
-import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport, type StreamableHTTPServerTransportOptions } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { authorizationServerMetadata, protectedResourceMetadata } from "./auth/metadata.js";
 import {
@@ -231,10 +230,10 @@ async function route(req: IncomingMessage, res: ServerResponse, keys: SealingKey
 }
 
 /**
- * Entrypoint shared by the local `node dist/http.js` dev server and the
- * Vercel serverless function (api/handler.ts) — same request handling
- * either way, since there's no per-process state to set up (sealing keys
- * are just env vars, re-read per request; nothing else persists).
+ * Request handling for the remote connector, kept apart from the server that
+ * binds the port (server.ts) so it can be driven directly from tests. There's
+ * no per-process state to set up either way: sealing keys are just env vars,
+ * re-read per request, and nothing else persists.
  */
 export async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
@@ -253,16 +252,4 @@ export async function handleRequest(req: IncomingMessage, res: ServerResponse): 
     console.error(error instanceof Error ? error.message : error);
     if (!res.headersSent) res.writeHead(500).end();
   }
-}
-
-function main(): void {
-  const port = Number(process.env.PORT ?? 3000);
-  const httpServer = createHttpServer((req, res) => void handleRequest(req, res));
-  httpServer.listen(port, () => {
-    console.error(`hevy-coach-mcp listening on :${port}`);
-  });
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
 }
