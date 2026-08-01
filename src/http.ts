@@ -152,6 +152,7 @@ async function route(req: IncomingMessage, res: ServerResponse, keys: SealingKey
       codeVerifier: form.get("code_verifier") ?? undefined,
       redirectUri: form.get("redirect_uri") ?? undefined,
       refreshToken: form.get("refresh_token") ?? undefined,
+      clientId: form.get("client_id") ?? undefined,
     };
     const result = await handleTokenRequest(body, keys, ACTIVE_KID);
     sendJson(res, "error" in result ? 400 : 200, result);
