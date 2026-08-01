@@ -124,7 +124,7 @@ Repo simple (no monorepo): un `package.json`, un `tsconfig`, un `vitest`.
 - **`src/http.ts`** — modo remoto. Streamable HTTP *stateless*
   (`sessionIdGenerator: undefined`), OAuth 2.1 + PKCE, sirve la página `/connect`.
 
-Ambos comparten `server.ts`, `engine/` y `hevy/`. Toda la lógica de producto es
+Ambos comparten `mcp-server.ts`, `engine/` y `hevy/`. Toda la lógica de producto es
 común; lo único que cambia es de dónde sale la credencial.
 
 ### Decisión 2026-07-08 — sin cache ni base de datos
@@ -194,7 +194,7 @@ API no tiene endpoint DELETE. El conector se gana la confianza primero leyendo.
 src/
   stdio.ts        entrypoint local (bin de npx)
   http.ts         entrypoint remoto: OAuth + /connect + /mcp
-  server.ts       registro de tools/resources/prompts (compartido)
+  mcp-server.ts   registro de tools/resources/prompts (compartido)
   config.ts       carga de configuración
   format.ts       formateo de salidas de tools
   resources.ts    hevy://profile, routines, exercises, stats/summary, workouts/recent
@@ -239,7 +239,7 @@ validar los shapes de verdad (la doc Swagger no es accesible programáticamente)
 `hevy/client.ts` + `schemas.ts` + smoke test contra la cuenta real.
 
 ### ✅ F2 — Adapter y health-check
-`adapter.ts` (datos sucios → dominio), `health-check`, `server.ts`, `stdio.ts`.
+`adapter.ts` (datos sucios → dominio), `health-check`, `mcp-server.ts`, `stdio.ts`.
 *Nota: el paso original incluía una base de datos y una tool `sync`; ambas
 desaparecieron con la decisión del 2026-07-08.*
 

@@ -2,7 +2,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfig } from "./config.js";
 import { HevyClient } from "./hevy/client.js";
-import { createServer } from "./server.js";
+import { createServer } from "./mcp-server.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
