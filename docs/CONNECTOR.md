@@ -142,6 +142,12 @@ Ask the assistant to run `health-check`. It reports the connection status and ho
 
 Replace `https://your-deployment.vercel.app` below with the URL of the deployment you're connecting to. The MCP endpoint is always that URL plus `/mcp`.
 
+### If you host it yourself
+
+Set `PUBLIC_URL` to your public HTTPS origin. The connector deliberately accepts remote OAuth callbacks only from origins you approve, so it cannot be used by an arbitrary web app to collect a user's Hevy authorization. Set `OAUTH_TRUSTED_REDIRECT_ORIGINS` to a comma-separated list of the exact HTTPS origins for clients you have tested (for example, the callback origins used by your ChatGPT and Claude.ai connectors). Callbacks to `http://localhost` and `http://127.0.0.1` remain available for desktop and CLI clients such as OpenCode and Claude Code.
+
+Do not add a domain until you have verified that it belongs to the client you intend to support. A client with an unapproved callback receives an error before the page that accepts a Hevy API key is shown.
+
 Authentication is OAuth 2.1 with PKCE and dynamic client registration, so clients that support OAuth handle it for you: the first request bounces you to a connect page, you paste your Hevy API key once, and the client stores the resulting token. The key is validated against Hevy immediately, so a typo fails right there rather than silently later.
 
 ### Claude.ai

@@ -21,34 +21,50 @@ export interface AuthorizeError {
   errorDescription: string;
 }
 
-/** Public clients only (PKCE-secured); redirect_uri must be https or http://localhost to prevent open-redirect abuse. */
-function isAllowedRedirectUri(redirectUri: string): boolean {
+/**
+ * Public CLI clients use loopback callbacks. Remote clients must return to an
+ * origin explicitly approved by the deployment operator.
+ */
+function isAllowedRedirectUri(redirectUri: string, trustedHttpsOrigins: ReadonlySet<string>): boolean {
   try {
     const url = new URL(redirectUri);
-    if (url.protocol === "https:") return true;
+    if (url.protocol === "https:") return trustedHttpsOrigins.has(url.origin);
     return url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
   } catch {
     return false;
   }
 }
 
-export function parseAuthorizeParams(query: URLSearchParams): AuthorizeParams | AuthorizeError {
-  const responseType = query.get("response_type");
-  const clientId = query.get("client_id");
-  const redirectUri = query.get("redirect_uri");
-  const codeChallenge = query.get("code_challenge");
-  const codeChallengeMethod = query.get("code_challenge_method");
-  const state = query.get("state") ?? undefined;
-
-  if (responseType !== "code") return { error: "unsupported_response_type", errorDescription: "Only response_type=code is supported" };
+export function validateAuthorizeParams(
+  params: AuthorizeParams,
+  trustedHttpsOrigins: ReadonlySet<string>,
+): AuthorizeParams | AuthorizeError {
+  const { clientId, redirectUri, codeChallenge } = params;
   if (!clientId) return { error: "invalid_request", errorDescription: "Missing client_id" };
-  if (!redirectUri || !isAllowedRedirectUri(redirectUri)) {
-    return { error: "invalid_request", errorDescription: "redirect_uri must be https:// or http://localhost" };
+  if (!redirectUri || !isAllowedRedirectUri(redirectUri, trustedHttpsOrigins)) {
+    return { error: "invalid_request", errorDescription: "redirect_uri is not approved for this connector" };
   }
   if (!codeChallenge) return { error: "invalid_request", errorDescription: "Missing code_challenge" };
-  if (codeChallengeMethod !== "S256") return { error: "invalid_request", errorDescription: "Only code_challenge_method=S256 is supported" };
+  return params;
+}
 
-  return { clientId, redirectUri, codeChallenge, state };
+export function parseAuthorizeParams(query: URLSearchParams, trustedHttpsOrigins: ReadonlySet<string>): AuthorizeParams | AuthorizeError {
+  if (query.get("response_type") !== "code") {
+    return { error: "unsupported_response_type", errorDescription: "Only response_type=code is supported" };
+  }
+  if (query.get("code_challenge_method") !== "S256") {
+    return { error: "invalid_request", errorDescription: "Only code_challenge_method=S256 is supported" };
+  }
+
+  return validateAuthorizeParams(
+    {
+      clientId: query.get("client_id") ?? "",
+      redirectUri: query.get("redirect_uri") ?? "",
+      codeChallenge: query.get("code_challenge") ?? "",
+      state: query.get("state") ?? undefined,
+    },
+    trustedHttpsOrigins,
+  );
 }
 
 function escapeHtml(value: string): string {
@@ -123,13 +139,15 @@ export function renderConnectPage(params: AuthorizeParams, errorMessage?: string
     color: var(--accent-text); background: var(--accent);
     border: 0; border-radius: 10px; cursor: pointer;
   }
-  .error {
-    margin: 0 0 20px; padding: 12px 14px; font-size: 0.9375rem;
-    background: var(--error-bg); color: var(--error-text);
-    border: 1px solid var(--error-border); border-radius: 10px;
-  }
-  .trust { margin: 16px 0 0; font-size: 0.8125rem; line-height: 1.5; color: var(--muted); }
-  a { color: inherit; }
+   .error {
+     margin: 0 0 20px; padding: 12px 14px; font-size: 0.9375rem;
+     background: var(--error-bg); color: var(--error-text);
+     border: 1px solid var(--error-border); border-radius: 10px;
+   }
+   .return-to { margin: 0 0 16px; font-size: 0.8125rem; line-height: 1.5; color: var(--muted); }
+   .trust { margin: 16px 0 0; font-size: 0.8125rem; line-height: 1.5; color: var(--muted); }
+   code { overflow-wrap: anywhere; }
+   a { color: inherit; }
 </style>
 </head>
 <body>
@@ -143,6 +161,7 @@ export function renderConnectPage(params: AuthorizeParams, errorMessage?: string
       <li>Go to <strong>Settings &rarr; API</strong>. This needs <strong>Hevy PRO</strong>.</li>
       <li>Generate a key if you don't have one, copy it, and paste it below.</li>
     </ol>
+    <p class="return-to">After connecting, you will return to <code>${escapeHtml(new URL(params.redirectUri).origin)}</code>. Only continue if you started this connection from a client you trust.</p>
     <form method="POST" action="/authorize">
       ${hidden}
       <label for="api_key">Hevy API key</label>

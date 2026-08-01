@@ -3,18 +3,40 @@ import { randomUUID } from "node:crypto";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport, type StreamableHTTPServerTransportOptions } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { authorizationServerMetadata, protectedResourceMetadata } from "./auth/metadata.js";
-import { handleConnectSubmit, handleTokenRequest, parseAuthorizeParams, renderConnectPage, type TokenRequestBody } from "./auth/oauth.js";
+import {
+  handleConnectSubmit,
+  handleTokenRequest,
+  parseAuthorizeParams,
+  renderConnectPage,
+  validateAuthorizeParams,
+  type TokenRequestBody,
+} from "./auth/oauth.js";
 import { loadSealingKeys, unsealAccessToken, TokenError, type SealingKey } from "./auth/token.js";
 import { HevyClient } from "./hevy/client.js";
 import { createServer } from "./server.js";
 
 const ACTIVE_KID = process.env.TOKEN_SEALING_ACTIVE_KID ?? "v1";
+const MAX_FORM_BODY_BYTES = 16 * 1024;
+
+class BodyTooLargeError extends Error {}
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let data = "";
-    req.on("data", (chunk: Buffer) => (data += chunk.toString("utf8")));
-    req.on("end", () => resolve(data));
+    let length = 0;
+    let tooLarge = false;
+    req.on("data", (chunk: Buffer) => {
+      length += chunk.length;
+      if (length > MAX_FORM_BODY_BYTES) {
+        if (!tooLarge) reject(new BodyTooLargeError("Request body is too large"));
+        tooLarge = true;
+        return;
+      }
+      data += chunk.toString("utf8");
+    });
+    req.on("end", () => {
+      if (!tooLarge) resolve(data);
+    });
     req.on("error", reject);
   });
 }
@@ -25,6 +47,27 @@ function baseUrl(req: IncomingMessage): string {
   const host = req.headers.host ?? "localhost";
   const proto = req.headers["x-forwarded-proto"] ?? "http";
   return `${proto}://${host}`;
+}
+
+function loadTrustedHttpsOrigins(env: NodeJS.ProcessEnv): Set<string> {
+  const rawOrigins = env.OAUTH_TRUSTED_REDIRECT_ORIGINS?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
+  const origins = new Set<string>();
+  for (const rawOrigin of rawOrigins) {
+    const url = new URL(rawOrigin);
+    if (url.protocol !== "https:" || url.origin !== rawOrigin.replace(/\/$/, "")) {
+      throw new Error("OAUTH_TRUSTED_REDIRECT_ORIGINS entries must be HTTPS origins without a path");
+    }
+    origins.add(url.origin);
+  }
+  return origins;
+}
+
+function setSecurityHeaders(res: ServerResponse): void {
+  res.setHeader("cache-control", "no-store");
+  res.setHeader("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
+  res.setHeader("referrer-policy", "no-referrer");
+  res.setHeader("x-content-type-options", "nosniff");
+  res.setHeader("x-frame-options", "DENY");
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -73,7 +116,7 @@ function unauthorized(res: ServerResponse, resourceMetadataUrl: string): void {
     .end(JSON.stringify({ error: "invalid_token" }));
 }
 
-async function route(req: IncomingMessage, res: ServerResponse, keys: SealingKey[]): Promise<void> {
+async function route(req: IncomingMessage, res: ServerResponse, keys: SealingKey[], trustedHttpsOrigins: ReadonlySet<string>): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const base = baseUrl(req);
 
@@ -114,7 +157,7 @@ async function route(req: IncomingMessage, res: ServerResponse, keys: SealingKey
   }
 
   if (url.pathname === "/authorize" && req.method === "GET") {
-    const parsed = parseAuthorizeParams(url.searchParams);
+    const parsed = parseAuthorizeParams(url.searchParams, trustedHttpsOrigins);
     if ("error" in parsed) {
       sendJson(res, 400, parsed);
       return;
@@ -132,11 +175,16 @@ async function route(req: IncomingMessage, res: ServerResponse, keys: SealingKey
       codeChallenge: form.get("code_challenge") ?? "",
       state: form.get("state") || undefined,
     };
+    const parsed = validateAuthorizeParams(params, trustedHttpsOrigins);
+    if ("error" in parsed) {
+      sendJson(res, 400, parsed);
+      return;
+    }
     const apiKey = form.get("api_key") ?? "";
 
-    const result = await handleConnectSubmit({ apiKey, ...params }, { validateApiKey, keys, activeKid: ACTIVE_KID });
+    const result = await handleConnectSubmit({ apiKey, ...parsed }, { validateApiKey, keys, activeKid: ACTIVE_KID });
     if ("renderError" in result) {
-      sendHtml(res, 200, renderConnectPage(params, result.renderError));
+      sendHtml(res, 200, renderConnectPage(parsed, result.renderError));
       return;
     }
     res.writeHead(302, { location: result.redirectTo }).end();
@@ -189,10 +237,19 @@ async function route(req: IncomingMessage, res: ServerResponse, keys: SealingKey
  * are just env vars, re-read per request; nothing else persists).
  */
 export async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const { keys } = loadSealingKeys(process.env, ACTIVE_KID);
   try {
-    await route(req, res, keys);
+    if (process.env.NODE_ENV === "production" && !process.env.PUBLIC_URL) {
+      throw new Error("PUBLIC_URL must be set in production");
+    }
+    const { keys } = loadSealingKeys(process.env, ACTIVE_KID);
+    const trustedHttpsOrigins = loadTrustedHttpsOrigins(process.env);
+    setSecurityHeaders(res);
+    await route(req, res, keys, trustedHttpsOrigins);
   } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      if (!res.headersSent) res.writeHead(413).end();
+      return;
+    }
     console.error(error instanceof Error ? error.message : error);
     if (!res.headersSent) res.writeHead(500).end();
   }
