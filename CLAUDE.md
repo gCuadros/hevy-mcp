@@ -4,6 +4,8 @@ MCP Server para Hevy (app de entrenamiento), modelo "conector estilo Strava": se
 
 Plan completo (fuente de verdad, iterar ahí antes que acá): `PLAN.md` (raíz del repo, deliberadamente fuera de git — es la copia de trabajo de `~/Documents/hevy-mcp-plan.md`).
 
+**Estado actual del proyecto: `STATUS.md`** (sí está en git). Qué está hecho, qué falta, cómo probarlo y por qué se tomó cada decisión — pensado para retomar el proyecto desde cero.
+
 ## Principio rector
 
 El MCP calcula números; el LLM emite juicios. Toda la analítica (e1RM, volumen, PRs, consistencia) vive en `engine/` como librería pura, testeada con fixtures, sin I/O.
