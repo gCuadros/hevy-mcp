@@ -20,3 +20,6 @@ Make the remote connector usable by a first-time user, and unblock npm publishin
 - Documented the two honest limits of the stateless design in `docs/CONNECTOR.md`:
   the authorization code is not single-use, and the sealing key is a single point
   of failure with no server-side revocation.
+- Restrict remote OAuth callbacks to deployment-approved origins, while keeping
+  loopback callbacks for desktop and CLI MCP clients. The connect page now shows
+  the approved return origin before accepting a Hevy API key.

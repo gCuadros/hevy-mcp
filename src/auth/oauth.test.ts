@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { handleConnectSubmit, handleTokenRequest, parseAuthorizeParams, renderConnectPage } from "./oauth.js";
+import { handleConnectSubmit, handleTokenRequest, parseAuthorizeParams, renderConnectPage, validateAuthorizeParams } from "./oauth.js";
 import { loadSealingKeys, sealAuthorizationCode, sealRefreshToken, unsealAccessToken, unsealRefreshToken, verifyPkce } from "./token.js";
 
 function testKeys() {
@@ -14,6 +14,8 @@ function pkcePair() {
   return { verifier, challenge };
 }
 
+const trustedOrigins = new Set(["https://client.example"]);
+
 describe("parseAuthorizeParams", () => {
   it("accepts a well-formed PKCE authorize request", () => {
     const query = new URLSearchParams({
@@ -24,7 +26,7 @@ describe("parseAuthorizeParams", () => {
       code_challenge_method: "S256",
       state: "xyz",
     });
-    const result = parseAuthorizeParams(query);
+    const result = parseAuthorizeParams(query, trustedOrigins);
     expect(result).toEqual({ clientId: "claude-code", redirectUri: "https://client.example/callback", codeChallenge: "abc123", state: "xyz" });
   });
 
@@ -36,7 +38,7 @@ describe("parseAuthorizeParams", () => {
       code_challenge: "abc",
       code_challenge_method: "S256",
     });
-    expect("error" in (parseAuthorizeParams(query) as object)).toBe(false);
+    expect("error" in (parseAuthorizeParams(query, trustedOrigins) as object)).toBe(false);
   });
 
   it("rejects a non-https, non-localhost redirect_uri (open redirect guard)", () => {
@@ -47,17 +49,36 @@ describe("parseAuthorizeParams", () => {
       code_challenge: "abc",
       code_challenge_method: "S256",
     });
-    expect(parseAuthorizeParams(query)).toMatchObject({ error: "invalid_request" });
+    expect(parseAuthorizeParams(query, trustedOrigins)).toMatchObject({ error: "invalid_request" });
   });
 
   it("rejects a missing code_challenge", () => {
     const query = new URLSearchParams({ response_type: "code", client_id: "c", redirect_uri: "https://x/cb", code_challenge_method: "S256" });
-    expect(parseAuthorizeParams(query)).toMatchObject({ error: "invalid_request" });
+    expect(parseAuthorizeParams(query, trustedOrigins)).toMatchObject({ error: "invalid_request" });
   });
 
   it("rejects an unsupported response_type", () => {
     const query = new URLSearchParams({ response_type: "token", client_id: "c", redirect_uri: "https://x/cb" });
-    expect(parseAuthorizeParams(query)).toMatchObject({ error: "unsupported_response_type" });
+    expect(parseAuthorizeParams(query, trustedOrigins)).toMatchObject({ error: "unsupported_response_type" });
+  });
+
+  it("rejects an HTTPS callback unless its origin is explicitly trusted", () => {
+    const query = new URLSearchParams({
+      response_type: "code",
+      client_id: "c",
+      redirect_uri: "https://untrusted.example/callback",
+      code_challenge: "abc",
+      code_challenge_method: "S256",
+    });
+    expect(parseAuthorizeParams(query, trustedOrigins)).toMatchObject({ error: "invalid_request" });
+  });
+
+  it("validates POSTed authorize values as well as the initial GET request", () => {
+    const result = validateAuthorizeParams(
+      { clientId: "c", redirectUri: "https://untrusted.example/callback", codeChallenge: "abc", state: undefined },
+      trustedOrigins,
+    );
+    expect(result).toMatchObject({ error: "invalid_request" });
   });
 });
 
@@ -74,6 +95,12 @@ describe("renderConnectPage", () => {
     expect(html).toContain('<input type="hidden" name="redirect_uri" value="https://x/cb">');
     expect(html).toContain('<input type="hidden" name="code_challenge" value="chal">');
     expect(html).toContain('<input type="hidden" name="state" value="st">');
+  });
+
+  it("shows the approved callback origin before the user enters their API key", () => {
+    const html = renderConnectPage({ clientId: "c", redirectUri: "https://client.example/callback", codeChallenge: "cc", state: undefined });
+    expect(html).toContain("https://client.example");
+    expect(html).toContain("Only continue if you started this connection from a client you trust.");
   });
 
   it("escapes a state crafted to break out of the hidden input", () => {
