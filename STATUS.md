@@ -285,12 +285,42 @@ mapa muscular. Tools: `get-progress`, `get-records`, `get-volume-report`,
   Glama, mcp.so, Smithery.
 - ⏳ Email a Hevy presentando el conector.
 
+### ✅ F8 — Escritura de rutinas
+`create-routine` y `update-routine` en `src/tools/write.ts`. El cliente HTTP dejó
+de ser solo-GET: `request()` acepta método y body.
+
+Decisiones que conviene no deshacer sin pensarlo:
+- **Solo rutinas.** El historial de entrenos no se escribe. Es la materia prima
+  de e1RM, PRs, volumen y consistencia; una serie inventada por el modelo no
+  ensucia solo el registro, desplaza las tendencias con las que luego decides.
+- **Todo o nada.** Los nombres de ejercicio se resuelven *antes* de mandar nada.
+  Sin DELETE en la API, una rutina construida a medias con los nombres que sí
+  resolvieron habría que limpiarla a mano.
+- **El PUT de Hevy reemplaza la rutina entera.** `update-routine` reconstruye el
+  payload desde lo que Hevy tiene guardado, así que cambiar el título no borra
+  los descansos ni los rangos de reps. Para eso hubo que añadir `rest_seconds` y
+  `rep_range` a los schemas de lectura: zod los descartaba y el round-trip los
+  habría perdido en silencio.
+- **Sin reintentos en escritura ante 5xx.** Sin clave de idempotencia y sin
+  DELETE, reintentar un POST que sí llegó deja una rutina duplicada que el
+  usuario no puede borrar desde aquí. Los 429 sí se reintentan: ahí la petición
+  se rechazó antes de hacer nada.
+- **Límite conocido:** Hevy no devuelve las notas a nivel de rutina al leer, así
+  que `update-routine` no puede conservarlas. Documentado en la descripción de la
+  tool y en `docs/CONNECTOR.md`.
+
+La promesa de "read-only" estaba escrita en cuatro sitios (página de conexión,
+`docs/CONNECTOR.md`, `README.md`, `CLAUDE.md`) y se actualizó en todos. La
+garantía que queda y hay que mantener cierta: **el historial de entrenos no se
+toca, y nada se puede borrar.**
+
 ### Backlog explícito (no bloquea nada)
 - Rate limiting anti-abuso en el modo remoto (sobrevive a la eliminación de la BD,
   desacoplado de ella).
 - Publicar en npm (aplazado por el autor hasta que el MCP esté más maduro).
 - Dominio propio en vez de `*.vercel.app`.
-- v2: escrituras (`create-routine`, `apply-progression`…).
+- Escrituras que siguen fuera a propósito: `create-workout`, medidas corporales,
+  ejercicios personalizados, carpetas de rutinas.
 
 ---
 

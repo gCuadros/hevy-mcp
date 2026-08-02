@@ -1,14 +1,20 @@
 import {
+  createRoutineBodySchema,
   exerciseTemplatesPageSchema,
   routineFoldersPageSchema,
+  routineResponseSchema,
   routinesPageSchema,
+  updateRoutineBodySchema,
   workoutEventsPageSchema,
   workoutSchema,
   workoutsCountSchema,
   workoutsPageSchema,
+  type CreateRoutineBody,
   type ExerciseTemplatesPage,
+  type Routine,
   type RoutineFoldersPage,
   type RoutinesPage,
+  type UpdateRoutineBody,
   type Workout,
   type WorkoutEventsPage,
   type WorkoutsPage,
@@ -84,6 +90,24 @@ export class HevyClient {
     return routinesPageSchema.parse(data);
   }
 
+  async getRoutineById(id: string): Promise<Routine> {
+    const data = await this.request(`/routines/${encodeURIComponent(id)}`);
+    return routineResponseSchema.parse(data);
+  }
+
+  async createRoutine(body: CreateRoutineBody): Promise<Routine> {
+    const data = await this.request("/routines", { method: "POST", body: createRoutineBodySchema.parse(body) });
+    return routineResponseSchema.parse(data);
+  }
+
+  async updateRoutine(id: string, body: UpdateRoutineBody): Promise<Routine> {
+    const data = await this.request(`/routines/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: updateRoutineBodySchema.parse(body),
+    });
+    return routineResponseSchema.parse(data);
+  }
+
   async getRoutineFolders(params: { page?: number; pageSize?: number } = {}): Promise<RoutineFoldersPage> {
     const search = new URLSearchParams();
     if (params.page) search.set("page", String(params.page));
@@ -100,9 +124,18 @@ export class HevyClient {
     return exerciseTemplatesPageSchema.parse(data);
   }
 
-  private async request(path: string, attempt = 0): Promise<unknown> {
+  private async request(path: string, init: { method?: string; body?: unknown } = {}, attempt = 0): Promise<unknown> {
+    const method = init.method ?? "GET";
+    const isWrite = method !== "GET";
+
     const response = await this.fetchFn(`${this.baseUrl}${path}`, {
-      headers: { "api-key": this.apiKey, accept: "application/json" },
+      method,
+      headers: {
+        "api-key": this.apiKey,
+        accept: "application/json",
+        ...(isWrite ? { "content-type": "application/json" } : {}),
+      },
+      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     });
 
     if (response.ok) {
@@ -111,18 +144,35 @@ export class HevyClient {
 
     if (response.status === 401 || response.status === 403) {
       throw new HevyApiError(
-        "Hevy API key is invalid or revoked. Regenerate it in Hevy → Settings → API.",
+        await this.errorMessage(response, "Hevy API key is invalid or revoked. Regenerate it in Hevy → Settings → API."),
         response.status,
       );
     }
 
-    const isRetryable = response.status === 429 || response.status >= 500;
+    // 5xx on a write is not safely retryable: Hevy has no idempotency key and no
+    // DELETE, so a create that actually landed before the error would leave a
+    // duplicate routine the user cannot remove through this connector. 429 is
+    // safe either way — the request was rejected before it did anything.
+    const isRetryable = response.status === 429 || (!isWrite && response.status >= 500);
     if (isRetryable && attempt < MAX_RETRIES) {
       const delayMs = 2 ** attempt * 250;
       await new Promise((resolve) => setTimeout(resolve, delayMs));
-      return this.request(path, attempt + 1);
+      return this.request(path, init, attempt + 1);
     }
 
-    throw new HevyApiError(`Hevy API responded ${response.status} for ${path}`, response.status);
+    throw new HevyApiError(
+      await this.errorMessage(response, `Hevy API responded ${response.status} for ${method} ${path}`),
+      response.status,
+    );
+  }
+
+  /** Hevy explains rejected writes in a `{ error }` body — worth surfacing verbatim. */
+  private async errorMessage(response: Response, fallback: string): Promise<string> {
+    try {
+      const body = (await response.json()) as { error?: unknown };
+      return typeof body.error === "string" && body.error ? `${fallback} — ${body.error}` : fallback;
+    } catch {
+      return fallback;
+    }
   }
 }

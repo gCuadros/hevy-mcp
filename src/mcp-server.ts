@@ -21,8 +21,9 @@ import {
   searchExercises,
   type ReadDeps,
 } from "./tools/read.js";
+import { createRoutine, updateRoutine, type WriteDeps } from "./tools/write.js";
 
-type Deps = ToolDeps & ReadDeps & AnalyticsDeps;
+type Deps = ToolDeps & ReadDeps & AnalyticsDeps & WriteDeps;
 
 function ambiguousOrNotFound(subject: string, result: { status: "ambiguous" | "not-found"; candidates?: unknown }) {
   if (result.status === "not-found") return formatToolResult(`No exercise found matching "${subject}"`, result, true);
@@ -222,6 +223,75 @@ export function createServer(deps: Deps): McpServer {
     async ({ from, to }) => {
       const result = await comparePeriodsTool(deps, { from, to });
       return formatToolResult(`Current: ${result.current.workoutCount} workout(s) vs previous: ${result.previous.workoutCount}`, result);
+    },
+  );
+
+  const setInputSchema = z.object({
+    type: z.enum(["warmup", "normal", "failure", "dropset"]).optional().describe("Defaults to normal"),
+    weightKg: z.number().nullable().optional(),
+    reps: z.number().int().nullable().optional(),
+    repRange: z.object({ start: z.number().int(), end: z.number().int() }).nullable().optional().describe("Target rep range, e.g. 8-12"),
+    distanceMeters: z.number().nullable().optional(),
+    durationSeconds: z.number().int().nullable().optional().describe("For timed work — planks, carries, TRX holds"),
+  });
+
+  const exerciseInputSchema = z.object({
+    exercise: z.string().describe("Exercise name or template ID. Ambiguous names are rejected, not guessed."),
+    sets: z.array(setInputSchema).describe("One entry per set. Three sets of 10 means three entries."),
+    restSeconds: z.number().int().nullable().optional(),
+    notes: z.string().nullable().optional(),
+    supersetId: z.number().int().nullable().optional().describe("Same number on two exercises pairs them as a superset"),
+  });
+
+  server.registerTool(
+    "create-routine",
+    {
+      title: "Create routine",
+      description:
+        "Creates a new routine in Hevy. Use when the user asks for a training plan to be saved rather than described. This writes to the user's Hevy account and cannot be undone from here — Hevy's API has no delete, so a routine created by mistake has to be removed by hand in the app. Confirm the plan with the user before calling. Exercise names are resolved against Hevy's catalogue; ambiguous ones come back as a candidate list to pick from, and nothing is written until every exercise resolves.",
+      inputSchema: {
+        title: z.string().describe("Routine title as it will appear in Hevy"),
+        exercises: z.array(exerciseInputSchema),
+        notes: z.string().optional(),
+        folderId: z.number().int().nullable().optional().describe("Omit for the default 'My Routines' folder"),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    async (input) => {
+      const result = await createRoutine(deps, input);
+      if (result.status === "unresolved") {
+        return formatToolResult("Nothing was written — some exercises could not be resolved", result, true);
+      }
+      return formatToolResult(`Created "${result.result.title}" with ${result.result.exercises.length} exercise(s)`, result.result);
+    },
+  );
+
+  server.registerTool(
+    "update-routine",
+    {
+      title: "Update routine",
+      description:
+        "Changes an existing routine in Hevy. Use for progression (bumping loads, adding a set) or renaming. Omit `exercises` to keep the current ones untouched; passing it REPLACES every exercise in the routine, so send the complete list, not just the ones that changed. Read the routine first with get-routine and confirm with the user — the previous version is not recoverable.",
+      inputSchema: {
+        routine: z.string().describe("Routine title or ID. Ambiguous titles are rejected, not guessed."),
+        title: z.string().optional().describe("New title; omit to keep the current one"),
+        exercises: z.array(exerciseInputSchema).optional().describe("Complete replacement list; omit to leave exercises alone"),
+        notes: z.string().optional().describe("Hevy does not return routine notes on read, so they can only be set, never preserved"),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    },
+    async (input) => {
+      const result = await updateRoutine(deps, input);
+      if (result.status === "not-found") {
+        return formatToolResult(`No routine found matching "${input.routine}"`, result, true);
+      }
+      if (result.status === "ambiguous") {
+        return formatToolResult(`"${input.routine}" matches more than one routine — retry with an ID`, result, true);
+      }
+      if (result.status === "unresolved") {
+        return formatToolResult("Nothing was written — some exercises could not be resolved", result, true);
+      }
+      return formatToolResult(`Updated "${result.result.title}"`, result.result);
     },
   );
 

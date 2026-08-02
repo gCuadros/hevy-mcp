@@ -1,0 +1,212 @@
+import type { HevyClient } from "../hevy/client.js";
+import { fetchAllRoutines } from "../hevy/fetchAll.js";
+import type { Routine, RoutineWriteExercise, RoutineWriteSet } from "../hevy/schemas.js";
+import type { SetType } from "../domain/types.js";
+import { resolveExercise, type ExerciseCandidate, type ReadDeps } from "./read.js";
+
+export type WriteDeps = ReadDeps;
+
+export interface RoutineSetInput {
+  type?: SetType | undefined;
+  weightKg?: number | null | undefined;
+  reps?: number | null | undefined;
+  repRange?: { start: number; end: number } | null | undefined;
+  distanceMeters?: number | null | undefined;
+  durationSeconds?: number | null | undefined;
+}
+
+export interface RoutineExerciseInput {
+  exercise: string;
+  notes?: string | null | undefined;
+  restSeconds?: number | null | undefined;
+  supersetId?: number | null | undefined;
+  sets: RoutineSetInput[];
+}
+
+export interface ExerciseProblem {
+  exercise: string;
+  status: "ambiguous" | "not-found";
+  candidates?: ExerciseCandidate[];
+}
+
+export type WriteResult<T> = { status: "written"; result: T } | { status: "unresolved"; problems: ExerciseProblem[] };
+
+function toWriteSet(set: RoutineSetInput): RoutineWriteSet {
+  return {
+    type: set.type ?? "normal",
+    weight_kg: set.weightKg ?? null,
+    reps: set.reps ?? null,
+    distance_meters: set.distanceMeters ?? null,
+    duration_seconds: set.durationSeconds ?? null,
+    custom_metric: null,
+    rep_range: set.repRange ?? null,
+  };
+}
+
+/**
+ * Resolves every exercise name before writing anything. Hevy has no DELETE and
+ * no transactions, so a routine half-built from the names that happened to
+ * resolve would be worse than no routine: the user would have to clean it up by
+ * hand. Either the whole thing is writable or nothing is sent.
+ */
+async function toWriteExercises(
+  deps: WriteDeps,
+  inputs: RoutineExerciseInput[],
+): Promise<{ exercises: RoutineWriteExercise[] } | { problems: ExerciseProblem[] }> {
+  const exercises: RoutineWriteExercise[] = [];
+  const problems: ExerciseProblem[] = [];
+
+  for (const input of inputs) {
+    const resolved = await resolveExercise(deps, input.exercise);
+    if (resolved.status === "resolved") {
+      exercises.push({
+        exercise_template_id: resolved.template.id,
+        superset_id: input.supersetId ?? null,
+        rest_seconds: input.restSeconds ?? null,
+        notes: input.notes ?? null,
+        sets: input.sets.map(toWriteSet),
+      });
+      continue;
+    }
+    problems.push(
+      resolved.status === "ambiguous"
+        ? { exercise: input.exercise, status: "ambiguous", candidates: resolved.candidates }
+        : { exercise: input.exercise, status: "not-found" },
+    );
+  }
+
+  return problems.length > 0 ? { problems } : { exercises };
+}
+
+export interface RoutineSummary {
+  id: string;
+  title: string;
+  folderId: number | null;
+  exercises: { title: string; sets: number }[];
+}
+
+function summarize(routine: Routine): RoutineSummary {
+  return {
+    id: routine.id,
+    title: routine.title,
+    folderId: routine.folder_id,
+    exercises: routine.exercises.map((exercise) => ({ title: exercise.title, sets: exercise.sets.length })),
+  };
+}
+
+export interface CreateRoutineInput {
+  title: string;
+  notes?: string | undefined;
+  folderId?: number | null | undefined;
+  exercises: RoutineExerciseInput[];
+}
+
+export async function createRoutine(deps: WriteDeps, input: CreateRoutineInput): Promise<WriteResult<RoutineSummary>> {
+  const resolved = await toWriteExercises(deps, input.exercises);
+  if ("problems" in resolved) return { status: "unresolved", problems: resolved.problems };
+
+  const routine = await deps.client.createRoutine({
+    routine: {
+      title: input.title,
+      folder_id: input.folderId ?? null,
+      ...(input.notes === undefined ? {} : { notes: input.notes }),
+      exercises: resolved.exercises,
+    },
+  });
+
+  return { status: "written", result: summarize(routine) };
+}
+
+export interface RoutineCandidate {
+  id: string;
+  title: string;
+}
+
+export type ResolveRoutineResult =
+  | { status: "resolved"; id: string }
+  | { status: "ambiguous"; candidates: RoutineCandidate[] }
+  | { status: "not-found" };
+
+/** Same contract as resolveExercise: an ID wins, an exact title wins, ambiguity never guesses. */
+export async function resolveRoutine(deps: WriteDeps, ref: string): Promise<ResolveRoutineResult> {
+  const routines = await fetchAllRoutines(deps.client);
+
+  const byId = routines.find((routine) => routine.id === ref);
+  if (byId) return { status: "resolved", id: byId.id };
+
+  const query = ref.trim().toLowerCase();
+  const exact = routines.filter((routine) => routine.title.toLowerCase() === query);
+  if (exact.length === 1 && exact[0]) return { status: "resolved", id: exact[0].id };
+
+  const partial = routines.filter((routine) => routine.title.toLowerCase().includes(query));
+  if (partial.length === 1 && partial[0]) return { status: "resolved", id: partial[0].id };
+  if (partial.length > 1) {
+    return { status: "ambiguous", candidates: partial.map((routine) => ({ id: routine.id, title: routine.title })) };
+  }
+
+  return { status: "not-found" };
+}
+
+/**
+ * Rebuilds the full write payload from what Hevy currently holds. The API only
+ * offers PUT, which replaces the routine wholesale, so anything absent from the
+ * body is erased — rest timers and rep ranges included. Round-tripping the
+ * stored values means an update that only changes the title cannot quietly
+ * flatten the rest of the routine.
+ */
+function toWritePayload(routine: Routine): RoutineWriteExercise[] {
+  return routine.exercises.map((exercise) => ({
+    exercise_template_id: exercise.exercise_template_id,
+    superset_id: exercise.superset_id,
+    rest_seconds: exercise.rest_seconds,
+    notes: exercise.notes,
+    sets: exercise.sets.map((set) => ({
+      type: set.type,
+      weight_kg: set.weight_kg,
+      reps: set.reps,
+      distance_meters: set.distance_meters,
+      duration_seconds: set.duration_seconds,
+      custom_metric: set.custom_metric,
+      rep_range:
+        set.rep_range && set.rep_range.start !== null && set.rep_range.end !== null
+          ? { start: set.rep_range.start, end: set.rep_range.end }
+          : null,
+    })),
+  }));
+}
+
+export interface UpdateRoutineInput {
+  routine: string;
+  title?: string | undefined;
+  notes?: string | undefined;
+  exercises?: RoutineExerciseInput[] | undefined;
+}
+
+export type UpdateRoutineResult =
+  | WriteResult<RoutineSummary>
+  | { status: "ambiguous"; candidates: RoutineCandidate[] }
+  | { status: "not-found" };
+
+export async function updateRoutine(deps: WriteDeps, input: UpdateRoutineInput): Promise<UpdateRoutineResult> {
+  const target = await resolveRoutine(deps, input.routine);
+  if (target.status !== "resolved") return target;
+
+  const current = await deps.client.getRoutineById(target.id);
+
+  let exercises = toWritePayload(current);
+  if (input.exercises) {
+    const resolved = await toWriteExercises(deps, input.exercises);
+    if ("problems" in resolved) return { status: "unresolved", problems: resolved.problems };
+    exercises = resolved.exercises;
+  }
+
+  const routine = await deps.client.updateRoutine(target.id, {
+    routine: {
+      title: input.title ?? current.title,
+      ...(input.notes === undefined ? {} : { notes: input.notes }),
+      exercises,
+    },
+  });
+
+  return { status: "written", result: summarize(routine) };
+}

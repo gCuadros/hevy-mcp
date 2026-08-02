@@ -170,8 +170,10 @@ export function renderConnectPage(params: AuthorizeParams, errorMessage?: string
       <button type="submit">Connect</button>
     </form>
     <p class="trust">Your key is checked against Hevy, then encrypted into the access token your AI client
-    holds. This server has no database and stores nothing &mdash; not your key, not your workouts. Access is
-    read-only: nothing is ever written back to Hevy. To revoke it, regenerate your key in Hevy.</p>
+    holds. This server has no database and stores nothing &mdash; not your key, not your workouts. It reads your
+    training history, and creates or edits <strong>routines</strong> when you ask it to. It never logs or edits
+    workouts, so your training record cannot be altered &mdash; and Hevy's API has no delete, so nothing can be
+    removed. To revoke access, regenerate your key in Hevy.</p>
   </div>
 </main>
 </body>
