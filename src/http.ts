@@ -8,6 +8,7 @@ import {
   parseAuthorizeParams,
   renderConnectPage,
   validateAuthorizeParams,
+  type AuthorizeParams,
   type TokenRequestBody,
 } from "./auth/oauth.js";
 import { loadSealingKeys, unsealAccessToken, TokenError, type SealingKey } from "./auth/token.js";
@@ -61,9 +62,24 @@ function loadTrustedHttpsOrigins(env: NodeJS.ProcessEnv): Set<string> {
   return origins;
 }
 
+/**
+ * `form-action` has to name the client's callback origin, not just 'self'.
+ * Submitting the connect form posts to /authorize, which answers 302 to the
+ * client's redirect_uri, and browsers apply form-action to every hop of that
+ * navigation — including the redirect. Chrome then reports the violation
+ * against /authorize rather than the redirect target (it withholds the
+ * destination to avoid leaking it), so the console blames a same-origin POST
+ * that 'self' plainly allows. Granting the origin costs nothing: it has
+ * already been checked against the approved list before this page renders.
+ */
+export function contentSecurityPolicy(formActionOrigin?: string): string {
+  const formAction = formActionOrigin ? `'self' ${formActionOrigin}` : "'self'";
+  return `default-src 'none'; style-src 'unsafe-inline'; form-action ${formAction}; base-uri 'none'; frame-ancestors 'none'`;
+}
+
 function setSecurityHeaders(res: ServerResponse): void {
   res.setHeader("cache-control", "no-store");
-  res.setHeader("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
+  res.setHeader("content-security-policy", contentSecurityPolicy());
   res.setHeader("referrer-policy", "no-referrer");
   res.setHeader("x-content-type-options", "nosniff");
   res.setHeader("x-frame-options", "DENY");
@@ -75,6 +91,11 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 
 function sendHtml(res: ServerResponse, status: number, html: string): void {
   res.writeHead(status, { "content-type": "text/html; charset=utf-8" }).end(html);
+}
+
+function sendConnectPage(res: ServerResponse, params: AuthorizeParams, errorMessage?: string): void {
+  res.setHeader("content-security-policy", contentSecurityPolicy(new URL(params.redirectUri).origin));
+  sendHtml(res, 200, renderConnectPage(params, errorMessage));
 }
 
 async function validateApiKey(apiKey: string): Promise<boolean> {
@@ -161,7 +182,7 @@ async function route(req: IncomingMessage, res: ServerResponse, keys: SealingKey
       sendJson(res, 400, parsed);
       return;
     }
-    sendHtml(res, 200, renderConnectPage(parsed));
+    sendConnectPage(res, parsed);
     return;
   }
 
@@ -183,7 +204,7 @@ async function route(req: IncomingMessage, res: ServerResponse, keys: SealingKey
 
     const result = await handleConnectSubmit({ apiKey, ...parsed }, { validateApiKey, keys, activeKid: ACTIVE_KID });
     if ("renderError" in result) {
-      sendHtml(res, 200, renderConnectPage(parsed, result.renderError));
+      sendConnectPage(res, parsed, result.renderError);
       return;
     }
     res.writeHead(302, { location: result.redirectTo }).end();
