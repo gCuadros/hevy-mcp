@@ -68,6 +68,26 @@ export const workoutEventsPageSchema = z
   })
   .transform((data) => ({ page: data.page, page_count: data.page_count, events: data.events ?? [] }));
 
+export const repRangeSchema = z.object({
+  start: z.number().nullish().transform((value) => value ?? null),
+  end: z.number().nullish().transform((value) => value ?? null),
+});
+
+/**
+ * Hevy documents rest_seconds as an integer when you write it and a string
+ * when you read it back. Accept both: this value only exists to be carried
+ * through an update untouched, and losing it would silently wipe the rest
+ * timers off every exercise in the routine.
+ */
+const restSecondsSchema = z
+  .union([z.number(), z.string()])
+  .nullish()
+  .transform((value) => {
+    if (value === null || value === undefined || value === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  });
+
 export const routineSetSchema = z.object({
   index: z.number().int(),
   type: z.enum(["warmup", "normal", "failure", "dropset"]),
@@ -83,6 +103,7 @@ export const routineSetSchema = z.object({
     .optional()
     .transform((value) => value ?? null),
   custom_metric: z.number().nullable(),
+  rep_range: repRangeSchema.nullish().transform((value) => value ?? null),
 });
 
 export const routineExerciseSchema = z.object({
@@ -91,6 +112,7 @@ export const routineExerciseSchema = z.object({
   notes: z.string().nullable(),
   exercise_template_id: z.string(),
   superset_id: z.number().int().nullable(),
+  rest_seconds: restSecondsSchema,
   sets: z.array(routineSetSchema),
 });
 
@@ -107,6 +129,55 @@ export const routinesPageSchema = z.object({
   page: z.number().int(),
   page_count: z.number().int(),
   routines: z.array(routineSchema),
+});
+
+/**
+ * Single-routine responses. The docs promise a bare Routine, but Hevy also
+ * answers `{ routine: … }` and `{ routine: [ … ] }` depending on the endpoint,
+ * so unwrap all three rather than fail a write that already went through.
+ */
+export const routineResponseSchema = z.preprocess((value) => {
+  if (value && typeof value === "object" && "routine" in value) {
+    const inner = (value as { routine: unknown }).routine;
+    return Array.isArray(inner) ? inner[0] : inner;
+  }
+  return value;
+}, routineSchema);
+
+/** Payloads sent to POST/PUT /v1/routines. Shapes verified against Hevy's OpenAPI doc. */
+export const routineWriteSetSchema = z.object({
+  type: z.enum(["warmup", "normal", "failure", "dropset"]),
+  weight_kg: z.number().nullable(),
+  reps: z.number().int().nullable(),
+  distance_meters: z.number().nullable(),
+  duration_seconds: z.number().nullable(),
+  custom_metric: z.number().nullable(),
+  rep_range: z.object({ start: z.number(), end: z.number() }).nullable(),
+});
+
+export const routineWriteExerciseSchema = z.object({
+  exercise_template_id: z.string(),
+  superset_id: z.number().int().nullable(),
+  rest_seconds: z.number().int().nullable(),
+  notes: z.string().nullable(),
+  sets: z.array(routineWriteSetSchema),
+});
+
+export const createRoutineBodySchema = z.object({
+  routine: z.object({
+    title: z.string().min(1),
+    folder_id: z.number().int().nullable(),
+    notes: z.string().optional(),
+    exercises: z.array(routineWriteExerciseSchema),
+  }),
+});
+
+export const updateRoutineBodySchema = z.object({
+  routine: z.object({
+    title: z.string().min(1),
+    notes: z.string().optional(),
+    exercises: z.array(routineWriteExerciseSchema),
+  }),
 });
 
 export const routineFolderSchema = z.object({
@@ -147,6 +218,10 @@ export type WorkoutEvent = z.infer<typeof workoutEventSchema>;
 export type WorkoutEventsPage = z.infer<typeof workoutEventsPageSchema>;
 export type Routine = z.infer<typeof routineSchema>;
 export type RoutinesPage = z.infer<typeof routinesPageSchema>;
+export type RoutineWriteSet = z.infer<typeof routineWriteSetSchema>;
+export type RoutineWriteExercise = z.infer<typeof routineWriteExerciseSchema>;
+export type CreateRoutineBody = z.infer<typeof createRoutineBodySchema>;
+export type UpdateRoutineBody = z.infer<typeof updateRoutineBodySchema>;
 export type RoutineFolder = z.infer<typeof routineFolderSchema>;
 export type RoutineFoldersPage = z.infer<typeof routineFoldersPageSchema>;
 export type ExerciseTemplate = z.infer<typeof exerciseTemplateSchema>;

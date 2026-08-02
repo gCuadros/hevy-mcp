@@ -48,8 +48,33 @@ export function workoutDto(id: string, startTime: string, exerciseTemplateId: st
   };
 }
 
-export function routineDto(id: string, title: string, folderId: number | null = null) {
-  return { id, title, folder_id: folderId, updated_at: "2026-01-01T00:00:00Z", created_at: "2026-01-01T00:00:00Z", exercises: [] };
+export function routineSetDto(overrides: Record<string, unknown> = {}) {
+  return {
+    index: 0,
+    type: "normal" as const,
+    weight_kg: 40,
+    reps: 10,
+    distance_meters: null,
+    duration_seconds: null,
+    custom_metric: null,
+    ...overrides,
+  };
+}
+
+export function routineExerciseDto(exerciseTemplateId: string, title: string, overrides: Record<string, unknown> = {}) {
+  return {
+    index: 0,
+    title,
+    notes: null,
+    exercise_template_id: exerciseTemplateId,
+    superset_id: null,
+    sets: [routineSetDto()],
+    ...overrides,
+  };
+}
+
+export function routineDto(id: string, title: string, folderId: number | null = null, exercises: unknown[] = []) {
+  return { id, title, folder_id: folderId, updated_at: "2026-01-01T00:00:00Z", created_at: "2026-01-01T00:00:00Z", exercises };
 }
 
 /**
@@ -81,4 +106,62 @@ export function buildTestClient(fixtures: { workouts?: ReturnType<typeof workout
   };
 
   return new HevyClient({ apiKey: "test", fetchFn: fetchFn as typeof fetch });
+}
+
+export interface RecordedWrite {
+  method: string;
+  path: string;
+  body: { routine: { title: string; notes?: string; folder_id?: number | null; exercises: unknown[] } };
+}
+
+/**
+ * Like buildTestClient, but serves single routines and accepts writes, keeping
+ * every request body for inspection. Write tests care less about what comes
+ * back than about what was sent — and, just as much, about the calls that never
+ * happen when an exercise fails to resolve.
+ */
+export function buildWriteTestClient(fixtures: {
+  routines?: ReturnType<typeof routineDto>[];
+  exerciseTemplates?: ReturnType<typeof exerciseTemplateDto>[];
+}) {
+  const routines = fixtures.routines ?? [];
+  const exerciseTemplates = fixtures.exerciseTemplates ?? [];
+  const writes: RecordedWrite[] = [];
+
+  const fetchFn = async (url: string | URL, init?: RequestInit) => {
+    const path = new URL(url).pathname;
+    const method = init?.method ?? "GET";
+
+    if (method === "GET" && path === "/v1/routines") return jsonResponse({ page: 1, page_count: 1, routines });
+    if (method === "GET" && path === "/v1/exercise_templates") {
+      return jsonResponse({ page: 1, page_count: 1, exercise_templates: exerciseTemplates });
+    }
+    if (method === "GET" && path.startsWith("/v1/routines/")) {
+      const routine = routines.find((candidate) => candidate.id === path.split("/").pop());
+      if (!routine) return jsonResponse({ error: "not found" }, 404);
+      return jsonResponse(routine);
+    }
+
+    if (method === "POST" || method === "PUT") {
+      const body = JSON.parse(String(init?.body)) as RecordedWrite["body"];
+      writes.push({ method, path, body });
+      // Hevy answers writes with the stored routine — read-shaped, so with the
+      // index and title the write payload doesn't carry. The wrapped envelope
+      // is the one seen in the wild, so exercise the unwrapping here too.
+      const stored = body.routine.exercises.map((exercise, index) => ({
+        ...(exercise as Record<string, unknown>),
+        index,
+        title: exerciseTemplates.find((t) => t.id === (exercise as { exercise_template_id: string }).exercise_template_id)?.title ?? "Exercise",
+        sets: ((exercise as { sets: Record<string, unknown>[] }).sets ?? []).map((set, setIndex) => ({ ...set, index: setIndex })),
+      }));
+      return jsonResponse(
+        { routine: [routineDto("written", body.routine.title, body.routine.folder_id ?? null, stored)] },
+        method === "POST" ? 201 : 200,
+      );
+    }
+
+    throw new Error(`buildWriteTestClient: unhandled ${method} ${path}`);
+  };
+
+  return { client: new HevyClient({ apiKey: "test", fetchFn: fetchFn as typeof fetch }), writes };
 }

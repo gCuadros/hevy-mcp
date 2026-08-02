@@ -1,6 +1,6 @@
 # hevy-coach-mcp
 
-An MCP server for [Hevy](https://www.hevyapp.com/) (the workout tracking app). Read-only: it fetches your workouts, routines and exercise templates live from Hevy — no local cache or database — then does the analytics math (e1RM, PRs, volume, consistency, period comparisons) so your MCP client can reason over real numbers instead of guessing.
+An MCP server for [Hevy](https://www.hevyapp.com/) (the workout tracking app). It fetches your workouts, routines and exercise templates live from Hevy — no local cache or database — then does the analytics math (e1RM, PRs, volume, consistency, period comparisons) so your MCP client can reason over real numbers instead of guessing. It can also create and edit routines; your workout history is read-only.
 
 Requires **Hevy PRO** and a Hevy API key (Hevy app → Settings → API).
 
@@ -55,7 +55,9 @@ Run `health-check` any time to confirm the connection. Every other tool fetches 
 
 ## Privacy
 
-Fully read-only: no tool writes anything, anywhere. Nothing about your account is stored — every tool call fetches fresh from Hevy's API using your own key, and nothing about your account is sent anywhere else.
+Nothing about your account is stored — every tool call fetches fresh from Hevy's API using your own key, and nothing about your account is sent anywhere else.
+
+Two tools write to Hevy: `create-routine` and `update-routine`, both declared as writes so your client asks before running them. Nothing writes to your workout history, and Hevy's API has no delete endpoint, so nothing can be removed. Note that a Hevy API key has no scopes — it grants full account access no matter what this server chooses to do with it.
 
 ## License
 

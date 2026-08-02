@@ -1,6 +1,6 @@
 # hevy-mcp
 
-MCP Server para Hevy (app de entrenamiento), modelo "conector estilo Strava": server remoto oficial-style, read-only en v1, con analítica computada en vivo sobre datos pedidos a Hevy en cada request (sin cache ni base de datos — decisión 2026-07-08, ver más abajo).
+MCP Server para Hevy (app de entrenamiento), modelo "conector estilo Strava": server remoto oficial-style, lectura + escritura de rutinas, con analítica computada en vivo sobre datos pedidos a Hevy en cada request (sin cache ni base de datos — decisión 2026-07-08, ver más abajo).
 
 Plan completo (fuente de verdad, iterar ahí antes que acá): `PLAN.md` (raíz del repo, deliberadamente fuera de git — es la copia de trabajo de `~/Documents/hevy-mcp-plan.md`).
 
@@ -16,11 +16,11 @@ El MCP calcula números; el LLM emite juicios. Toda la analítica (e1RM, volumen
 
 - **Repo simple, no monorepo.** Un solo `package.json`, un tsconfig, un vitest. Dos entrypoints del mismo paquete: `src/stdio.ts` (bin de `npx hevy-coach-mcp`, API key por env var) y `src/server.ts` (server remoto: abre el puerto y delega el enrutado en `src/http.ts` — OAuth 2.1 + PKCE, sirve `/connect`). Ambos comparten `mcp-server.ts`, `engine/`, `hevy/`.
 - **Nombre del paquete npm: `hevy-coach-mcp`** (no `hevy-mcp`, ya cogido por otro autor; ni `hevy-mcp-server`, también cogido — verificado en vivo 2026-07-07). El repo de GitHub sigue llamándose `hevy-mcp`.
-- **v1 es solo lectura + analítica.** Sin escrituras irreversibles. No hay tool `sync` — no hay nada que sincronizar (ver "sin cache" más arriba).
-- **API de Hevy:** requiere Hevy PRO + API key (header `api-key`). Sin endpoint DELETE en v1 (irrelevante, read-only).
-- Todas las tools son `readOnlyHint: true`. Aceptan nombres humanos de ejercicios (desambiguación de IDs interna). Ningún resource devuelve historial completo — eso va en tools con filtros.
+- **Lectura + analítica, y escritura solo de rutinas** (`create-routine`, `update-routine`, F8). El historial de entrenos no se escribe nunca: es la materia prima de toda la analítica y un error del modelo ahí desplaza récords y tendencias. No hay tool `sync` — no hay nada que sincronizar (ver "sin cache" más arriba).
+- **API de Hevy:** requiere Hevy PRO + API key (header `api-key`). **No existe ningún endpoint DELETE** en toda la API: se puede crear y sobrescribir, nunca borrar. Eso es lo que hace asumible la escritura, y a la vez lo que obliga a no escribir nada a medias — de ahí que las tools de escritura resuelvan todos los nombres antes de mandar nada.
+- Las tools de lectura son `readOnlyHint: true`; las de escritura lo declaran explícitamente como `false` (`update-routine` además `destructiveHint: true`) para que el cliente pida confirmación. Todas aceptan nombres humanos de ejercicios (desambiguación de IDs interna) y **nunca adivinan** ante ambigüedad. Ningún resource devuelve historial completo — eso va en tools con filtros.
 - Errores accionables: 401 → mensaje para regenerar key; key revocada → estado `needs-reauth`, nunca fallo silencioso.
-- Escrituras (`create-routine`, `apply-progression`, etc.) quedan para v2, deliberadamente pospuestas — toda escritura en Hevy es irreversible, el conector gana confianza primero en read-only.
+- La escritura llegó en F8, después de que el conector estuviera desplegado y probado en read-only. Sigue fuera: registrar o editar entrenos (`create-workout`), medidas corporales y ejercicios personalizados. Antes de añadir cualquiera de esas, revisar qué promete la página de conexión (`renderConnectPage`) y `docs/CONNECTOR.md` — la garantía de que el historial no se toca está escrita ahí y hay que mantenerla cierta.
 
 ## Convenciones
 

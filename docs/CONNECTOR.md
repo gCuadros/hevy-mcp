@@ -168,7 +168,8 @@ ChatGPT only accepts remote servers over public HTTPS — there is no way to poi
 
 Worth knowing before you try:
 
-- **Free accounts can't add custom connectors at all.** Plus and Pro can add read-only ones, which is exactly what this is. Business/Enterprise/Education additionally allow write-capable connectors, and an admin has to permit custom connectors first.
+- **Custom MCP connectors need a Business, Enterprise or Edu workspace.** Developer mode isn't offered on Free, Plus, Go or Pro, and an admin has to enable it under Settings → Permissions & Roles → Connected Data. Write actions specifically are in beta on those same plans.
+- **The two write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine` and `update-routine` are declared as writes on purpose, so you get the prompt; the ten read tools don't.
 - **Deep Research mode won't see it.** ChatGPT's Deep Research only calls connector tools named `search` and `fetch`; this server exposes training-analytics tools instead. Use it in normal chat with Developer Mode on.
 
 ### Claude Code
@@ -267,7 +268,9 @@ You can name exercises the way you actually say them ("incline bench", "RDL"). I
 
 ## Limitations
 
-- **Read-only.** Nothing is written back to Hevy — no routines created, no workouts logged, no edits. Every write in Hevy is irreversible and there's no delete endpoint, so writes are deliberately deferred until the read side has earned trust.
+- **Routines can be written; your training log cannot.** `create-routine` and `update-routine` write to Hevy. Nothing else does: no workout is ever logged, edited or deleted, so the history your analytics are computed from can only be changed by you, in the app. Hevy's API has no delete endpoint at all, which cuts both ways — a routine created by mistake is not destructive, but you have to remove it by hand.
+- **`update-routine` replaces, it does not merge.** Hevy only offers a whole-routine PUT. The server rebuilds the payload from what Hevy currently holds so an unrelated change can't flatten your rest timers or rep ranges, but if you pass a new exercise list it replaces the old one entirely. There is no undo.
+- **Routine notes can be set but not preserved.** Hevy returns per-exercise notes on read but not routine-level ones, so an update that doesn't pass `notes` cannot carry over what was there.
 - **Hevy PRO required.** The API is a PRO feature. There is no way around this.
 - **Estimated 1RM is estimated.** e1RM is computed with standard formulas (Epley/Brzycki) from your logged sets. It's a good trend line and a bad prediction of what you'd actually hit on the day.
 - **Analytics over a long history takes a moment.** With no cache, a question that scans your whole training history re-fetches it, page by page, each time. On a multi-year account expect a few seconds.
@@ -276,7 +279,7 @@ You can name exercises the way you actually say them ("incline bench", "RDL"). I
 
 ## Privacy and revocation
 
-Your API key gives read access to your Hevy account. Treat it accordingly.
+Your API key gives full access to your Hevy account — Hevy issues one key with no scopes, so it can write as well as read regardless of what this connector chooses to do with it. Treat it accordingly.
 
 **Local:** the key lives in your own MCP client config and is sent only to Hevy's API. It never reaches any server of ours, because there isn't one.
 
