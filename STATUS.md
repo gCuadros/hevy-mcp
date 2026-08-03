@@ -277,9 +277,9 @@ mapa muscular. Tools: `get-progress`, `get-records`, `get-volume-report`,
   formato del artículo de Strava: qué es, comandos exactos por cliente, preguntas
   de ejemplo, limitaciones, privacidad y revocación. El README enlaza a ella.
   Hecho en la rama `f6/docs`, **sin subir todavía**.
-- ⏳ **Los 3 placeholders `https://your-deployment.vercel.app` de
-  `docs/CONNECTOR.md` hay que sustituirlos por la URL real** en cuanto exista el
-  despliegue.
+- ✅ **URL del despliegue en `docs/CONNECTOR.md`**: `https://hevy-mcp-alpha.vercel.app`.
+  Confirmada por el usuario como definitiva (2026-08-03) — es la que da Vercel y
+  no hay intención de cambiarla.
 - ⏳ Vídeo demo de ~60 s.
 - ⏳ Publicar en: directorio de conectores de Claude, r/Hevyapp, Discord de Hevy,
   Glama, mcp.so, Smithery.

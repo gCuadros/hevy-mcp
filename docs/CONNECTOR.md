@@ -140,7 +140,7 @@ Ask the assistant to run `health-check`. It reports the connection status and ho
 
 ## Remote setup
 
-Replace `https://your-deployment.vercel.app` below with the URL of the deployment you're connecting to. The MCP endpoint is always that URL plus `/mcp`.
+The examples below point at `https://hevy-mcp-alpha.vercel.app`, the deployment maintained by this project. If you host your own, swap in your URL — the MCP endpoint is always that URL plus `/mcp`.
 
 ### If you host it yourself
 
@@ -155,7 +155,7 @@ Authentication is OAuth 2.1 with PKCE and dynamic client registration, so client
 **Settings → Connectors → Add custom connector**, then paste:
 
 ```
-https://your-deployment.vercel.app/mcp
+https://hevy-mcp-alpha.vercel.app/mcp
 ```
 
 ### ChatGPT
@@ -163,7 +163,7 @@ https://your-deployment.vercel.app/mcp
 ChatGPT only accepts remote servers over public HTTPS — there is no way to point it at a local process, so the local setup above does not apply.
 
 1. Enable **Developer mode**: **Settings → Apps / Connectors → Advanced settings → Developer mode**. (OpenAI has moved this toggle more than once; look under Connectors, Apps, or Security depending on your version.)
-2. **Settings → Connectors → Add custom connector**, paste `https://your-deployment.vercel.app/mcp`, and authenticate when prompted.
+2. **Settings → Connectors → Add custom connector**, paste `https://hevy-mcp-alpha.vercel.app/mcp`, and authenticate when prompted.
 3. Enable the connector in the chat where you want to use it — Developer Mode connectors are opt-in per conversation.
 
 Worth knowing before you try:
@@ -175,7 +175,7 @@ Worth knowing before you try:
 ### Claude Code
 
 ```
-claude mcp add --transport http hevy https://your-deployment.vercel.app/mcp
+claude mcp add --transport http hevy https://hevy-mcp-alpha.vercel.app/mcp
 ```
 
 Then run `/mcp` and authenticate — the connect page opens in your browser.
@@ -188,7 +188,7 @@ Then run `/mcp` and authenticate — the connect page opens in your browser.
   "mcp": {
     "hevy": {
       "type": "remote",
-      "url": "https://your-deployment.vercel.app/mcp",
+      "url": "https://hevy-mcp-alpha.vercel.app/mcp",
       "enabled": true
     }
   }
@@ -201,7 +201,7 @@ OpenCode performs dynamic client registration on its own; run `opencode mcp auth
 
 ```toml
 [mcp_servers.hevy]
-url = "https://your-deployment.vercel.app/mcp"
+url = "https://hevy-mcp-alpha.vercel.app/mcp"
 ```
 
 Then `codex mcp login hevy` to run the OAuth flow.
@@ -213,7 +213,7 @@ Then `codex mcp login hevy` to run the OAuth flow.
   "servers": {
     "hevy": {
       "type": "http",
-      "url": "https://your-deployment.vercel.app/mcp"
+      "url": "https://hevy-mcp-alpha.vercel.app/mcp"
     }
   }
 }
