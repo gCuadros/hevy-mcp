@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile
+
+      # The same three commands AGENTS.md tells agents to run before calling a
+      # change done. Keep them in sync: if this job grows a step, document it there.
+      - run: yarn typecheck
+      - run: yarn test
+      - run: yarn build
+
+      # The real-API smoke tests skip themselves without HEVY_API_KEY, which is
+      # deliberate — CI must not depend on a live third-party account. They are
+      # the maintainer's job to run locally when schemas change.

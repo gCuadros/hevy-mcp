@@ -6,6 +6,13 @@ dist/
 *.sqlite3
 .tokensave/
 .DS_Store
-PLAN.md
 .vercel
+
+# Per-machine agent config. .claude/settings.json IS versioned — it is the shared
+# permission allowlist; only local overrides stay out.
+.claude/settings.local.json
+
+# Maintainer's local working notebooks, deliberately not in the repo.
+# Everything an agent needs is in AGENTS.md.
+PLAN.md
 STATUS.md

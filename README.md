@@ -59,6 +59,15 @@ Nothing about your account is stored — every tool call fetches fresh from Hevy
 
 Two tools write to Hevy: `create-routine` and `update-routine`, both declared as writes so your client asks before running them. Nothing writes to your workout history, and Hevy's API has no delete endpoint, so nothing can be removed. Note that a Hevy API key has no scopes — it grants full account access no matter what this server chooses to do with it.
 
+## Contributing
+
+Clone, `yarn install`, and copy `.env.example` to `.env.local`. Validate any change with
+`yarn typecheck && yarn test && yarn build` — the same three commands CI runs.
+
+[`AGENTS.md`](AGENTS.md) is the full guide to the architecture, conventions and the
+decisions worth knowing before changing anything. It is written for AI coding agents, but
+it is the fastest way for a human to get oriented too.
+
 ## License
 
 MIT
