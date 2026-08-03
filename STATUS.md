@@ -283,7 +283,13 @@ mapa muscular. Tools: `get-progress`, `get-records`, `get-volume-report`,
 - ⏳ Vídeo demo de ~60 s.
 - ⏳ Publicar en: directorio de conectores de Claude, r/Hevyapp, Discord de Hevy,
   Glama, mcp.so, Smithery.
-- ⏳ Email a Hevy presentando el conector.
+- ⏳ Pedir a Hevy acceso OAuth para terceros. **Después de publicar**, no antes:
+  la petición pesa más con un conector ya en uso que con un proyecto a medias.
+  El borrador del email vivía en `docs/hevy-oauth-request.md` y se sacó del repo
+  el 2026-08-03 — un email a un tercero no es documentación del producto. Sigue
+  recuperable con `git show <commit>:docs/hevy-oauth-request.md`. Antes de
+  enviarlo, comprobar que `api.hevyapp.com/.well-known/oauth-authorization-server`
+  sigue devolviendo 404; si dejó de hacerlo, la premisa caducó.
 
 ### ✅ F8 — Escritura de rutinas
 `create-routine` y `update-routine` en `src/tools/write.ts`. El cliente HTTP dejó
