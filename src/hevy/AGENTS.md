@@ -13,7 +13,7 @@ Read the root `AGENTS.md` first. This file only covers what is specific to this 
 | `schemas.ts` | zod schemas for the wire format. The contract with reality. |
 | `adapter.ts` | Wire DTO → `Domain*` types. The only place snake_case becomes camelCase and ISO strings become `Date`. |
 | `fetchAll.ts` | Pagination. Returns `Domain*`, already adapted. |
-| `testFixtures.ts` | Fake clients for tool tests. Not shipped — excluded from the build with the other test code. |
+| `testFixtures.ts` | Fake clients for tool tests. Excluded from the published package by an explicit entry in `tsconfig.build.json` — it is test code that is not named `*.test.ts`, so it does not fall under that glob and had to be listed separately. |
 
 Base URL is `https://api.hevyapp.com/v1`. Authentication is a single `api-key` header.
 There are no scopes: one key grants everything the account can do.
