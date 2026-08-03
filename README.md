@@ -6,8 +6,12 @@ Requires **Hevy PRO** and a Hevy API key (Hevy app → Settings → API).
 
 ## Install
 
+> **Not on npm yet.** The `npx` commands below work from the first published
+> release onward. Until then, clone this repo, run `yarn install && yarn build`,
+> and point your client at `node /absolute/path/to/hevy-mcp/dist/stdio.js`.
+
 ```
-claude mcp add hevy -e HEVY_API_KEY=your_key_here -- npx hevy-coach-mcp
+claude mcp add hevy -e HEVY_API_KEY=your_key_here -- npx -y hevy-coach-mcp
 ```
 
 Or add it manually to your client's MCP config:
@@ -17,7 +21,7 @@ Or add it manually to your client's MCP config:
   "mcpServers": {
     "hevy": {
       "command": "npx",
-      "args": ["hevy-coach-mcp"],
+      "args": ["-y", "hevy-coach-mcp"],
       "env": { "HEVY_API_KEY": "your_key_here" }
     }
   }
@@ -28,13 +32,18 @@ This works in **Claude Desktop** (`claude_desktop_config.json`), **Claude Code**
 
 Your API key stays local: it's read from the `HEVY_API_KEY` environment variable and never leaves your machine except in calls to Hevy's own API.
 
-There's also a hosted mode (OAuth, for Claude.ai and other clients that can't run a local process) — see [docs/CONNECTOR.md](docs/CONNECTOR.md) for both setups, example questions, and privacy details.
+There's also a hosted mode over Streamable HTTP with OAuth, for clients that can't spawn a
+local process (Claude.ai, ChatGPT). Point them at `https://hevy-mcp-alpha.vercel.app/mcp`
+and they'll run the OAuth flow themselves. [docs/CONNECTOR.md](docs/CONNECTOR.md) covers
+both setups client by client, plus self-hosting, example questions and privacy details.
 
 ## First use
 
 Run `health-check` any time to confirm the connection. Every other tool fetches live from Hevy — there's nothing to sync or warm up first.
 
 ## Tools
+
+Twelve read tools, all marked `readOnlyHint`:
 
 - `health-check` — connection status
 - `get-workouts`, `get-workout` — list/inspect workouts
@@ -44,6 +53,11 @@ Run `health-check` any time to confirm the connection. Every other tool fetches 
 - `get-volume-report` — effective sets and tonnage per muscle group per week
 - `get-consistency` — training frequency, streak, longest gap
 - `compare-periods` — volume/workout-count diff between two date ranges
+
+Two write tools, declared as writes so your client asks first:
+
+- `create-routine` — build a new routine from exercise names
+- `update-routine` — edit an existing routine; passing an exercise list replaces the old one outright (`destructiveHint`)
 
 ## Resources
 
