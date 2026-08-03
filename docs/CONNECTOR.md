@@ -144,7 +144,7 @@ Replace `https://your-deployment.vercel.app` below with the URL of the deploymen
 
 ### If you host it yourself
 
-Set `PUBLIC_URL` to your public HTTPS origin. The connector deliberately accepts remote OAuth callbacks only from origins you approve, so it cannot be used by an arbitrary web app to collect a user's Hevy authorization. Set `OAUTH_TRUSTED_REDIRECT_ORIGINS` to a comma-separated list of the exact HTTPS origins for clients you have tested (for example, the callback origins used by your ChatGPT and Claude.ai connectors). Callbacks to `http://localhost` and `http://127.0.0.1` remain available for desktop and CLI clients such as OpenCode and Claude Code.
+Set `PUBLIC_URL` to your public HTTPS origin. The connector deliberately accepts remote OAuth callbacks only from origins you approve, so it cannot be used by an arbitrary web app to collect a user's Hevy authorization. Set `OAUTH_TRUSTED_REDIRECT_ORIGINS` to a comma-separated list of the exact HTTPS origins for clients you have tested (for example, the callback origins used by your ChatGPT and Claude.ai connectors). Loopback callbacks (`http://localhost`, `http://127.0.0.1` and `http://[::1]`, on any port) remain available for desktop and CLI clients such as OpenCode and Claude Code — they need no entry in that list.
 
 Do not add a domain until you have verified that it belongs to the client you intend to support. A client with an unapproved callback receives an error before the page that accepts a Hevy API key is shown.
 
