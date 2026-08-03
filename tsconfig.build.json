@@ -1,4 +1,7 @@
 {
+  // Build config for the published package: test code must not ship. testFixtures.ts
+  // is named for what it is rather than *.test.ts, so it needs its own entry — it was
+  // being emitted into dist/ and published to npm until 2026-08-03.
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/testFixtures.ts"]
 }

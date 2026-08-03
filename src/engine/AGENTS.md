@@ -5,10 +5,15 @@ guess at. Read the root `AGENTS.md` first.
 
 ## The rules that make this directory work
 
-**Pure functions only.** No network, no filesystem, no environment variables, no
-`Date.now()`, no `new Date()` without an argument. Every input arrives as an argument,
-including "now" when a calculation needs it. A function that reads the clock cannot be
-tested, and consistency and streak maths are exactly where an untestable clock hides bugs.
+**Pure functions only.** No network, no filesystem, no environment variables, no reading
+the clock mid-computation. Every input arrives as an argument, including "now" when a
+calculation needs it. A function that reads the clock cannot be tested, and consistency
+and streak maths are exactly where an untestable clock hides bugs.
+
+The one accepted form is a **default parameter** — `computeConsistency(startTimes, now: Date = new Date())`
+in `consistency.ts`. It keeps callers convenient while letting every test pass an explicit
+`now` and stay deterministic. That is the pattern to copy if a new function needs the
+current time; a bare `new Date()` or `Date.now()` in the body is not.
 
 **No I/O means no imports from `../hevy/` either.** This directory takes `Domain*` types
 from `../domain/types.js` and returns plain numbers and objects. If you need a value that
@@ -29,6 +34,7 @@ expression, where it comes from, and where it breaks down.
 | File | Computes |
 |---|---|
 | `e1rm.ts` | Estimated 1RM per set (Epley default, Brzycki available), and the best set of a session. |
+| `muscle-map.ts` | `exercise_template_id` → primary muscle group, built from Hevy's own templates. `volume.ts` depends on it. There is no separately curated dataset, on purpose. |
 | `records.ts` | PRs at 1/3/5/8 reps. |
 | `volume.ts` | Effective sets and tonnage per muscle group per week. |
 | `consistency.ts` | Training frequency, current streak, longest gap. |
