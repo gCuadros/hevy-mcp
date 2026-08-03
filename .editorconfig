@@ -1,0 +1,16 @@
+# No linter or formatter runs in this repo, so this is what keeps mechanical
+# formatting consistent between editors and agents. Style beyond this (double
+# quotes, semicolons, long lines) is documented in AGENTS.md.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+trim_trailing_whitespace = false
