@@ -41,6 +41,17 @@ describe("parseAuthorizeParams", () => {
     expect("error" in (parseAuthorizeParams(query, trustedOrigins) as object)).toBe(false);
   });
 
+  it("allows an IPv6 loopback redirect_uri, which RFC 8252 clients may pick over 127.0.0.1", () => {
+    const query = new URLSearchParams({
+      response_type: "code",
+      client_id: "c",
+      redirect_uri: "http://[::1]:33418/callback",
+      code_challenge: "abc",
+      code_challenge_method: "S256",
+    });
+    expect("error" in (parseAuthorizeParams(query, trustedOrigins) as object)).toBe(false);
+  });
+
   it("rejects a non-https, non-localhost redirect_uri (open redirect guard)", () => {
     const query = new URLSearchParams({
       response_type: "code",
