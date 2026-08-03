@@ -1,6 +1,6 @@
 # Connect your Hevy training log to Claude
 
-`hevy-coach-mcp` is an [MCP](https://modelcontextprotocol.io/) server that gives an AI assistant read access to your [Hevy](https://www.hevyapp.com/) training history — and, more usefully, does the analytics math on top of it.
+`hevy-coach-mcp` is an [MCP](https://modelcontextprotocol.io/) server that gives an AI assistant read access to your [Hevy](https://www.hevyapp.com/) training history — and, more usefully, does the analytics math on top of it. It can also write routines. It can never write workouts: your training log is read-only, always.
 
 Without it, asking an assistant "did I get stronger on bench this mesocycle?" gets you a guess. With it, the assistant calls a tool that computes your estimated 1RM trend from every set you actually logged, and answers with numbers.
 
@@ -17,7 +17,7 @@ This is a standard MCP server speaking both of the protocol's transports, so it 
 | Where it runs | Your machine | A server you or someone else hosts |
 | Your API key | An env var on your machine | Pasted once into a connect page |
 | Transport | stdio | Streamable HTTP + OAuth 2.1 (PKCE) |
-| Setup | One command | Click "Connect" |
+| Setup | One command | Paste one URL |
 
 Local is the simpler and more private option — nothing but Hevy ever sees your key. Remote exists for clients that run in a browser or in someone else's cloud and have no local process to spawn.
 
@@ -42,10 +42,12 @@ If your client can spawn a local process, use local — it's fewer moving parts 
 
 Get your API key from the Hevy app: **Settings → API**. Every example below is the same server started the same way; only the file and key names change.
 
+> **Not on npm yet.** The `npx` examples in this section work from the first published release onward. Until then, clone the repo, run `yarn install && yarn build`, and replace `npx` / `["-y", "hevy-coach-mcp"]` with `node` / `["/absolute/path/to/hevy-mcp/dist/stdio.js"]`. Everything else — the env var, the tools, the remote setup below — is unaffected.
+
 ### Claude Code
 
 ```
-claude mcp add hevy -e HEVY_API_KEY=your_key_here -- npx hevy-coach-mcp
+claude mcp add hevy -e HEVY_API_KEY=your_key_here -- npx -y hevy-coach-mcp
 ```
 
 ### Claude Desktop
@@ -57,7 +59,7 @@ Edit `claude_desktop_config.json` (**Settings → Developer → Edit Config**):
   "mcpServers": {
     "hevy": {
       "command": "npx",
-      "args": ["hevy-coach-mcp"],
+      "args": ["-y", "hevy-coach-mcp"],
       "env": { "HEVY_API_KEY": "your_key_here" }
     }
   }
@@ -65,6 +67,8 @@ Edit `claude_desktop_config.json` (**Settings → Developer → Edit Config**):
 ```
 
 Restart Claude Desktop.
+
+Keep the `-y`. Without it, `npx` asks for confirmation before installing the package the first time, and it asks on stdin — which is the channel the MCP protocol is already using. The server looks like it hung instead of like it asked a question.
 
 ### Cursor
 
@@ -140,15 +144,11 @@ Ask the assistant to run `health-check`. It reports the connection status and ho
 
 ## Remote setup
 
-The examples below point at `https://hevy-mcp-alpha.vercel.app`, the deployment maintained by this project. If you host your own, swap in your URL — the MCP endpoint is always that URL plus `/mcp`.
+**The only thing you need is the URL.** Give your client `https://hevy-mcp-alpha.vercel.app/mcp` and it does the rest.
 
-### If you host it yourself
+There is nothing to register, no client ID to obtain, no key to paste into a config file, and no setup on this end. Authentication is OAuth 2.1 with PKCE and [dynamic client registration](https://datatracker.ietf.org/doc/html/rfc7591), so a client that speaks OAuth registers itself, sends you to a connect page, and stores the token it gets back. You paste your Hevy API key once, on that page. It is checked against Hevy before the page accepts it, so a typo fails immediately instead of turning into a broken connector later.
 
-Set `PUBLIC_URL` to your public HTTPS origin. The connector deliberately accepts remote OAuth callbacks only from origins you approve, so it cannot be used by an arbitrary web app to collect a user's Hevy authorization. Set `OAUTH_TRUSTED_REDIRECT_ORIGINS` to a comma-separated list of the exact HTTPS origins for clients you have tested (for example, the callback origins used by your ChatGPT and Claude.ai connectors). Loopback callbacks (`http://localhost`, `http://127.0.0.1` and `http://[::1]`, on any port) remain available for desktop and CLI clients such as OpenCode and Claude Code — they need no entry in that list.
-
-Do not add a domain until you have verified that it belongs to the client you intend to support. A client with an unapproved callback receives an error before the page that accepts a Hevy API key is shown.
-
-Authentication is OAuth 2.1 with PKCE and dynamic client registration, so clients that support OAuth handle it for you: the first request bounces you to a connect page, you paste your Hevy API key once, and the client stores the resulting token. The key is validated against Hevy immediately, so a typo fails right there rather than silently later.
+That URL is the deployment maintained by this project. If you run [your own](#self-hosting), everything below is identical with your origin substituted — the MCP endpoint is always your origin plus `/mcp`.
 
 ### Claude.ai
 
@@ -168,8 +168,8 @@ ChatGPT only accepts remote servers over public HTTPS — there is no way to poi
 
 Worth knowing before you try:
 
-- **Custom MCP connectors need a Business, Enterprise or Edu workspace.** Developer mode isn't offered on Free, Plus, Go or Pro, and an admin has to enable it under Settings → Permissions & Roles → Connected Data. Write actions specifically are in beta on those same plans.
-- **The two write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine` and `update-routine` are declared as writes on purpose, so you get the prompt; the ten read tools don't.
+- **Developer mode is not on every plan.** Which plans get it, and whether an admin has to enable it first under Settings → Permissions & Roles → Connected Data, is OpenAI's call and has changed more than once. If you can't find the toggle, that's the reason — nothing here will fix it.
+- **The two write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine` and `update-routine` are declared as writes on purpose, so you get the prompt; the twelve read tools don't.
 - **Deep Research mode won't see it.** ChatGPT's Deep Research only calls connector tools named `search` and `fetch`; this server exposes training-analytics tools instead. Use it in normal chat with Developer Mode on.
 
 ### Claude Code
@@ -236,6 +236,79 @@ Storing nothing has two consequences worth stating plainly rather than burying:
 
 Neither of these is fixable without adding the database this design exists to avoid. If you'd rather not accept them, use the local setup: it has no server, no tokens and no sealing key at all.
 
+## Self-hosting
+
+You do not need to host anything to use this connector — the section above works as-is. Host your own if you want the sealing key to be yours, or you want to run a modified build.
+
+It's one Node process (Node 22+) with no database, no cache and no state, so it deploys anywhere that runs a Node HTTP server. On Vercel it needs no config file: the zero-config Node builder finds `src/server.ts` and wraps it. `yarn build && node dist/server.js` covers everything else.
+
+### Environment variables
+
+| Variable | When you need it | What it is |
+|---|---|---|
+| `TOKEN_SEALING_KEY_v1` | **Always** | 32 random bytes, base64: `openssl rand -base64 32`. Encrypts each user's Hevy key into their own tokens. |
+| `PUBLIC_URL` | **Any deployment reachable from outside your machine** | The origin OAuth discovery advertises, no trailing slash — e.g. `https://hevy.example.com`. |
+| `OAUTH_TRUSTED_REDIRECT_ORIGINS` | Only to support browser-based clients | Comma-separated HTTPS origins allowed as OAuth callbacks. |
+| `TOKEN_SEALING_ACTIVE_KID` | Only to rotate the sealing key | Which key id seals new tokens. Defaults to `v1`. |
+| `PORT` | Only if 3000 is taken | Port to bind. Vercel sets this itself — don't override it there. |
+
+**A bad configuration does not stop the server; it stops every request.** The process binds the port and logs `hevy-coach-mcp listening on :3000` regardless, then answers `500` to everything — including `GET /`. A green deploy proves nothing. Send a request.
+
+### `PUBLIC_URL`
+
+This is the `issuer` in the discovery document and the base of every endpoint a client is told to visit. It is pinned to an environment variable rather than derived from the incoming `Host` header because that header is set by whoever sends the request: derived, a forged `Host` would hand a client a metadata document naming somebody else's authorization endpoints.
+
+When `NODE_ENV=production` — which Vercel sets for you — the server refuses to answer without it. Outside production it falls back to the request's own host so that `localhost` development needs no configuration at all. **That fallback is for development only.** Reverse-proxied deployments that leave `NODE_ENV` unset are exactly where it hurts: nothing fails loudly, the issuer just quietly becomes whatever internal hostname the proxy passed through, and clients loop on an authorization endpoint that isn't reachable. Set `PUBLIC_URL` on anything with a public URL, whatever `NODE_ENV` says.
+
+### `OAUTH_TRUSTED_REDIRECT_ORIGINS`
+
+Optional, and empty by default. Empty is a working configuration — it just means only loopback clients can connect.
+
+Loopback callbacks (`http://localhost`, `http://127.0.0.1` and `http://[::1]`, on any port) are **always** accepted and never belong in this list. That covers Claude Code, OpenCode, Codex CLI, VS Code and every other client that opens your own browser and catches the redirect on a local port.
+
+Browser-based clients return to their own domain instead, and each one has to be named here or it is refused before the page that accepts a Hevy API key is ever rendered. To support the same clients as the maintained deployment:
+
+```
+OAUTH_TRUSTED_REDIRECT_ORIGINS=https://claude.ai,https://claude.com,https://chatgpt.com
+```
+
+Entries are scheme and host only. An entry carrying a path, or one that isn't HTTPS, is rejected — and since that check runs per request, it takes down the whole deployment rather than just that entry.
+
+The point of the list is that a Hevy API key typed into your connect page can only ever be handed back to a destination you named. Don't add a domain you haven't confirmed belongs to the client you meant to support.
+
+### Endpoints
+
+Everything is served from one origin, so `PUBLIC_URL` is the only address you configure.
+
+| Path | Method | Purpose |
+|---|---|---|
+| `/` | GET | Liveness. Returns `hevy-coach-mcp is running`. |
+| `/.well-known/oauth-authorization-server` | GET | [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) metadata: issuer and endpoint URLs. |
+| `/.well-known/oauth-protected-resource` | GET | [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) metadata, pointing `/mcp` at this authorization server. |
+| `/register` | POST | Dynamic client registration. Issues a client id; registers nothing, since nothing is stored. |
+| `/authorize` | GET, POST | GET renders the connect page; POST takes the API key and redirects with a code. |
+| `/token` | POST | `authorization_code` and `refresh_token` grants. |
+| `/mcp` | POST, GET, DELETE | The MCP endpoint (Streamable HTTP). Bearer token required on all three. |
+
+Clients find all of this on their own: an unauthenticated `/mcp` request answers `401` with a `WWW-Authenticate` header naming the protected-resource metadata URL, and the client follows it from there. The only URL a user ever types is `/mcp`.
+
+### Verifying a deployment
+
+```bash
+# 1. Alive, and the issuer is the origin you meant — not an internal hostname.
+curl -s https://your-origin.example/.well-known/oauth-authorization-server
+
+# 2. A loopback callback is accepted: 200, and an HTML page.
+curl -s -o /dev/null -w '%{http_code}\n' 'https://your-origin.example/authorize?response_type=code&client_id=probe&code_challenge_method=S256&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&redirect_uri=http://localhost:9999/cb'
+
+# 3. An origin you never approved is refused: 400.
+curl -s -o /dev/null -w '%{http_code}\n' 'https://your-origin.example/authorize?response_type=code&client_id=probe&code_challenge_method=S256&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&redirect_uri=https://not-approved.example/cb'
+```
+
+If you approved browser clients, run step 2 again with each of their origins in `redirect_uri` and expect `200` from every one.
+
+A `500` on step 1 means the configuration is wrong. The server logs which of the three it is: no sealing key, no `PUBLIC_URL` while `NODE_ENV=production`, or a malformed entry in the origins list.
+
 ## Things to ask it
 
 - "Did I get stronger on bench press over the last 8 weeks?"
@@ -263,6 +336,10 @@ There are also four prompts (`weekly-review`, `program-audit`, `deload-check`, `
 - `get-volume-report` — effective sets and tonnage per muscle group per week
 - `get-consistency` — training frequency, current streak, longest gap
 - `compare-periods` — volume and workout-count deltas between two date ranges
+
+**Writing** — the only two tools that change anything, both declared as writes so your client asks first
+- `create-routine` — build a new routine from exercise names
+- `update-routine` — edit an existing routine; passing an exercise list replaces the old one outright
 
 You can name exercises the way you actually say them ("incline bench", "RDL"). If a name is ambiguous the server returns the candidates and asks rather than picking one for you — a wrong guess here would silently corrupt every number downstream.
 
