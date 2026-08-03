@@ -21,6 +21,11 @@ export interface AuthorizeError {
   errorDescription: string;
 }
 
+// RFC 8252 §7.3 tells clients to try both IPv4 and IPv6 loopback, so accepting
+// only 127.0.0.1 would lock out a conformant CLI on a host where ::1 wins.
+// `new URL()` keeps the brackets in `hostname` for IPv6 literals.
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
 /**
  * Public CLI clients use loopback callbacks. Remote clients must return to an
  * origin explicitly approved by the deployment operator.
@@ -29,7 +34,7 @@ function isAllowedRedirectUri(redirectUri: string, trustedHttpsOrigins: Readonly
   try {
     const url = new URL(redirectUri);
     if (url.protocol === "https:") return trustedHttpsOrigins.has(url.origin);
-    return url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+    return url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname);
   } catch {
     return false;
   }
