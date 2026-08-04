@@ -1,6 +1,8 @@
 import {
   createRoutineBodySchema,
+  createRoutineFolderBodySchema,
   exerciseTemplatesPageSchema,
+  routineFolderResponseSchema,
   routineFoldersPageSchema,
   routineResponseSchema,
   routinesPageSchema,
@@ -10,8 +12,10 @@ import {
   workoutsCountSchema,
   workoutsPageSchema,
   type CreateRoutineBody,
+  type CreateRoutineFolderBody,
   type ExerciseTemplatesPage,
   type Routine,
+  type RoutineFolder,
   type RoutineFoldersPage,
   type RoutinesPage,
   type UpdateRoutineBody,
@@ -114,6 +118,11 @@ export class HevyClient {
     if (params.pageSize) search.set("pageSize", String(params.pageSize));
     const data = await this.request(`/routine_folders?${search.toString()}`);
     return routineFoldersPageSchema.parse(data);
+  }
+
+  async createRoutineFolder(body: CreateRoutineFolderBody): Promise<RoutineFolder> {
+    const data = await this.request("/routine_folders", { method: "POST", body: createRoutineFolderBodySchema.parse(body) });
+    return routineFolderResponseSchema.parse(data);
   }
 
   async getExerciseTemplates(params: { page?: number; pageSize?: number } = {}): Promise<ExerciseTemplatesPage> {

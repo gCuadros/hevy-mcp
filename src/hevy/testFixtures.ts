@@ -114,10 +114,20 @@ export function buildTestClient(fixtures: { workouts?: ReturnType<typeof workout
   return new HevyClient({ apiKey: "test", fetchFn: fetchFn as typeof fetch });
 }
 
+interface RoutineWriteBody {
+  title: string;
+  notes?: string;
+  folder_id?: number | null;
+  exercises: unknown[];
+}
+
 export interface RecordedWrite {
   method: string;
   path: string;
-  body: { routine: { title: string; notes?: string; folder_id?: number | null; exercises: unknown[] } };
+  // A union rather than one loose shape: a test that reads `.routine` off a folder
+  // write should not typecheck. The `?: undefined` arms are what let each key still
+  // be read directly off the union before narrowing.
+  body: { routine: RoutineWriteBody; routine_folder?: undefined } | { routine_folder: { title: string }; routine?: undefined };
 }
 
 /**
@@ -135,6 +145,7 @@ export function buildWriteTestClient(fixtures: {
   const routineFolders = fixtures.routineFolders ?? [];
   const exerciseTemplates = fixtures.exerciseTemplates ?? [];
   const writes: RecordedWrite[] = [];
+  let nextFolderId = 900;
 
   const fetchFn = async (url: string | URL, init?: RequestInit) => {
     const path = new URL(url).pathname;
@@ -151,8 +162,17 @@ export function buildWriteTestClient(fixtures: {
       return jsonResponse(routine);
     }
 
+    if (method === "POST" && path === "/v1/routine_folders") {
+      const body = JSON.parse(String(init?.body)) as { routine_folder: { title: string } };
+      writes.push({ method, path, body });
+      // Hevy answers with the created folder at index 0; the wrapped envelope is
+      // the shape the routine endpoints use, so exercise the unwrapping here too.
+      const created = routineFolderDto(nextFolderId++, body.routine_folder.title, 0);
+      return jsonResponse({ routine_folder: created }, 201);
+    }
+
     if (method === "POST" || method === "PUT") {
-      const body = JSON.parse(String(init?.body)) as RecordedWrite["body"];
+      const body = JSON.parse(String(init?.body)) as { routine: RoutineWriteBody };
       writes.push({ method, path, body });
       // Hevy answers writes with the stored routine — read-shaped, so with the
       // index and title the write payload doesn't carry. The wrapped envelope

@@ -1,5 +1,5 @@
 import type { HevyClient } from "../hevy/client.js";
-import { fetchAllRoutines } from "../hevy/fetchAll.js";
+import { fetchAllRoutineFolders, fetchAllRoutines } from "../hevy/fetchAll.js";
 import type { Routine, RoutineWriteExercise, RoutineWriteSet } from "../hevy/schemas.js";
 import type { SetType } from "../domain/types.js";
 import { resolveExercise, resolveRoutineFolder, type ExerciseCandidate, type ReadDeps, type RoutineFolderCandidate } from "./read.js";
@@ -134,6 +134,33 @@ export async function createRoutine(deps: WriteDeps, input: CreateRoutineInput):
   });
 
   return { status: "written", result: summarize(routine) };
+}
+
+export interface RoutineFolderSummary {
+  id: number;
+  index: number;
+  title: string;
+}
+
+export type CreateRoutineFolderResult =
+  | { status: "written"; result: RoutineFolderSummary }
+  | { status: "duplicate"; existing: RoutineFolderSummary };
+
+/**
+ * Refuses to create a folder whose title already exists. Hevy has no DELETE, so a
+ * second "Push Pull" is permanent clutter — and worse, it makes that name ambiguous
+ * forever, so create-routine can no longer file anything into either of them. The
+ * existing folder is returned instead, which is what the caller wanted anyway.
+ */
+export async function createRoutineFolder(deps: WriteDeps, input: { title: string }): Promise<CreateRoutineFolderResult> {
+  const title = input.title.trim();
+  const existing = (await fetchAllRoutineFolders(deps.client)).find((folder) => folder.title.toLowerCase() === title.toLowerCase());
+  if (existing) {
+    return { status: "duplicate", existing: { id: existing.id, index: existing.index, title: existing.title } };
+  }
+
+  const folder = await deps.client.createRoutineFolder({ routine_folder: { title } });
+  return { status: "written", result: { id: folder.id, index: folder.index, title: folder.title } };
 }
 
 export interface RoutineCandidate {

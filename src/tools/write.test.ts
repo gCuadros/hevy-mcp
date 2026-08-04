@@ -8,7 +8,7 @@ import {
   routineFolderDto,
   routineSetDto,
 } from "../hevy/testFixtures.js";
-import { createRoutine, updateRoutine } from "./write.js";
+import { createRoutine, createRoutineFolder, updateRoutine } from "./write.js";
 
 const templates = [
   exerciseTemplateDto("trxrow", "TRX Row"),
@@ -87,7 +87,7 @@ describe("create-routine", () => {
       );
 
       expect(result.status).toBe("written");
-      expect(writes[0]?.body.routine.folder_id).toBe(33);
+      expect(writes[0]?.body.routine?.folder_id).toBe(33);
     });
 
     it("accepts a folder ID passed as a string", async () => {
@@ -95,7 +95,7 @@ describe("create-routine", () => {
 
       await createRoutine({ client }, { title: "Push", folder: "11", exercises: [{ exercise: "TRX Row", sets: [{ reps: 10 }] }] });
 
-      expect(writes[0]?.body.routine.folder_id).toBe(11);
+      expect(writes[0]?.body.routine?.folder_id).toBe(11);
     });
 
     it("writes nothing when the folder name matches two folders", async () => {
@@ -131,8 +131,39 @@ describe("create-routine", () => {
 
       await createRoutine({ client }, { title: "Push", exercises: [{ exercise: "TRX Row", sets: [{ reps: 10 }] }] });
 
-      expect(writes[0]?.body.routine.folder_id).toBeNull();
+      expect(writes[0]?.body.routine?.folder_id).toBeNull();
     });
+  });
+});
+
+describe("create-routine-folder", () => {
+  const folders = [routineFolderDto(11, "Cut Season II", 0), routineFolderDto(33, "Deload", 1)];
+
+  it("creates the folder and reports where Hevy put it", async () => {
+    const { client, writes } = buildWriteTestClient({ routineFolders: folders });
+
+    const result = await createRoutineFolder({ client }, { title: "Bulk Season" });
+
+    expect(result).toMatchObject({ status: "written", result: { title: "Bulk Season", index: 0 } });
+    expect(writes).toEqual([{ method: "POST", path: "/v1/routine_folders", body: { routine_folder: { title: "Bulk Season" } } }]);
+  });
+
+  it("writes nothing when a folder with that title already exists, whatever the casing", async () => {
+    const { client, writes } = buildWriteTestClient({ routineFolders: folders });
+
+    const result = await createRoutineFolder({ client }, { title: "  deload  " });
+
+    expect(result).toMatchObject({ status: "duplicate", existing: { id: 33, title: "Deload" } });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("does not treat a title that merely contains an existing one as a duplicate", async () => {
+    const { client, writes } = buildWriteTestClient({ routineFolders: folders });
+
+    const result = await createRoutineFolder({ client }, { title: "Deload Week" });
+
+    expect(result.status).toBe("written");
+    expect(writes[0]?.body.routine_folder).toEqual({ title: "Deload Week" });
   });
 });
 
