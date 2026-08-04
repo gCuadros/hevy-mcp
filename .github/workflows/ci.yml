@@ -5,13 +5,27 @@ on:
     branches: [main]
   pull_request:
 
+# Nothing here writes to the repo. The release workflow asks for what it needs.
+permissions:
+  contents: read
+
+# A second push to a branch makes the first run pointless. Never cancel on main:
+# that history is what the release workflow reads.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
+  # The name of this job is the required status check in the `main` ruleset.
+  # Renaming it, or splitting it into a matrix, makes the required context
+  # disappear and every pull request waits forever for a check that will never
+  # report. Add steps here; do not rename the job.
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: yarn
@@ -24,6 +38,53 @@ jobs:
       - run: yarn test
       - run: yarn build
 
+      # What ends up on npm is not what `yarn build` leaves in dist/ — `files`
+      # and .npmignore sit in between, and nobody notices the difference until
+      # they open the tarball. This package once shipped 42 compiled test files
+      # and a whole dist/store/ left over from the deleted cache layer.
+      #
+      # Written with explicit `if`s rather than `! grep -q ...`: `set -e`, which
+      # is how GitHub runs these blocks, exempts negated commands, so a `!` check
+      # can never fail a step. It would look like a guard and assert nothing.
+      - name: Check the published tarball
+        run: |
+          yarn pack --filename package.tgz
+          tar -tzf package.tgz > files.txt
+
+          fail() { echo "::error::$1"; cat files.txt; exit 1; }
+
+          grep -q '^package/dist/stdio.js$' files.txt || fail "dist/stdio.js is missing — the bin entry would not resolve"
+          if grep -qE '\.test\.js$' files.txt; then fail "compiled tests in the tarball"; fi
+          if grep -q '^package/dist/store/' files.txt; then fail "dist/store/ is back — this package ships no database"; fi
+          head -1 dist/stdio.js | grep -q '^#!/usr/bin/env node' || fail "dist/stdio.js lost its shebang — npx would not run it"
+
       # The real-API smoke tests skip themselves without HEVY_API_KEY, which is
       # deliberate — CI must not depend on a live third-party account. They are
       # the maintainer's job to run locally when schemas change.
+
+  # Deliberately NOT a required check. Docs-only and chore branches have nothing
+  # to announce, so a red mark here is a question, not a blocker: either add the
+  # changeset or label the pull request `no-changeset` to say it needs none.
+  # Dependency bumps are skipped outright — they are dozens a year and none of
+  # them is a user-facing change worth a line in the changelog.
+  changeset:
+    if: >-
+      github.event_name == 'pull_request'
+      && github.actor != 'dependabot[bot]'
+      && !contains(github.event.pull_request.labels.*.name, 'no-changeset')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # `changeset status --since` diffs against main, so the shallow clone
+          # CI defaults to is not enough.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile
+
+      - run: yarn changeset status --since=origin/main

@@ -77,15 +77,20 @@ export function routineDto(id: string, title: string, folderId: number | null = 
   return { id, title, folder_id: folderId, updated_at: "2026-01-01T00:00:00Z", created_at: "2026-01-01T00:00:00Z", exercises };
 }
 
+export function routineFolderDto(id: number, title: string, index = 0) {
+  return { id, index, title, updated_at: "2026-01-01T00:00:00Z", created_at: "2026-01-01T00:00:00Z" };
+}
+
 /**
  * Builds a HevyClient whose fetchFn serves fixed pages for
- * /v1/workouts, /v1/routines, /v1/exercise_templates, /v1/workouts/:id —
- * everything paginated as a single page. Good enough for tool-level tests
- * that exercise the live-fetch path without hitting the real API.
+ * /v1/workouts, /v1/routines, /v1/routine_folders, /v1/exercise_templates,
+ * /v1/workouts/:id — everything paginated as a single page. Good enough for
+ * tool-level tests that exercise the live-fetch path without hitting the real API.
  */
-export function buildTestClient(fixtures: { workouts?: ReturnType<typeof workoutDto>[]; routines?: ReturnType<typeof routineDto>[]; exerciseTemplates?: ReturnType<typeof exerciseTemplateDto>[] } = {}) {
+export function buildTestClient(fixtures: { workouts?: ReturnType<typeof workoutDto>[]; routines?: ReturnType<typeof routineDto>[]; routineFolders?: ReturnType<typeof routineFolderDto>[]; exerciseTemplates?: ReturnType<typeof exerciseTemplateDto>[] } = {}) {
   const workouts = fixtures.workouts ?? [];
   const routines = fixtures.routines ?? [];
+  const routineFolders = fixtures.routineFolders ?? [];
   const exerciseTemplates = fixtures.exerciseTemplates ?? [];
 
   const fetchFn = async (url: string | URL) => {
@@ -100,6 +105,7 @@ export function buildTestClient(fixtures: { workouts?: ReturnType<typeof workout
       return jsonResponse(workout);
     }
     if (path === "/v1/routines") return jsonResponse({ page: 1, page_count: 1, routines });
+    if (path === "/v1/routine_folders") return jsonResponse({ page: 1, page_count: 1, routine_folders: routineFolders });
     if (path === "/v1/exercise_templates") return jsonResponse({ page: 1, page_count: 1, exercise_templates: exerciseTemplates });
 
     throw new Error(`buildTestClient: unhandled path ${path}`);
@@ -122,9 +128,11 @@ export interface RecordedWrite {
  */
 export function buildWriteTestClient(fixtures: {
   routines?: ReturnType<typeof routineDto>[];
+  routineFolders?: ReturnType<typeof routineFolderDto>[];
   exerciseTemplates?: ReturnType<typeof exerciseTemplateDto>[];
 }) {
   const routines = fixtures.routines ?? [];
+  const routineFolders = fixtures.routineFolders ?? [];
   const exerciseTemplates = fixtures.exerciseTemplates ?? [];
   const writes: RecordedWrite[] = [];
 
@@ -133,6 +141,7 @@ export function buildWriteTestClient(fixtures: {
     const method = init?.method ?? "GET";
 
     if (method === "GET" && path === "/v1/routines") return jsonResponse({ page: 1, page_count: 1, routines });
+    if (method === "GET" && path === "/v1/routine_folders") return jsonResponse({ page: 1, page_count: 1, routine_folders: routineFolders });
     if (method === "GET" && path === "/v1/exercise_templates") {
       return jsonResponse({ page: 1, page_count: 1, exercise_templates: exerciseTemplates });
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildTestClient, exerciseTemplateDto, workoutDto } from "../hevy/testFixtures.js";
-import { getExerciseHistory, getWorkouts, resolveExercise, searchExercises } from "./read.js";
+import { buildTestClient, exerciseTemplateDto, routineFolderDto, workoutDto } from "../hevy/testFixtures.js";
+import { getExerciseHistory, getWorkouts, listRoutineFolders, resolveExercise, resolveRoutineFolder, searchExercises } from "./read.js";
 
 function testDeps() {
   const client = buildTestClient({
@@ -55,5 +55,23 @@ describe("read tools", () => {
   it("getExerciseHistory passes through ambiguity instead of guessing", async () => {
     const result = await getExerciseHistory(testDeps(), { exercise: "bench" });
     expect(result.status).toBe("ambiguous");
+  });
+
+  it("listRoutineFolders returns each folder with the index Hevy orders them by", async () => {
+    const client = buildTestClient({ routineFolders: [routineFolderDto(11, "Cut Season II", 0), routineFolderDto(22, "Deload", 1)] });
+
+    expect(await listRoutineFolders({ client })).toEqual({
+      folders: [
+        { id: 11, index: 0, title: "Cut Season II" },
+        { id: 22, index: 1, title: "Deload" },
+      ],
+    });
+  });
+
+  it("resolveRoutineFolder prefers an exact title over a substring collision", async () => {
+    const client = buildTestClient({ routineFolders: [routineFolderDto(11, "Cut", 0), routineFolderDto(22, "Cut Season II", 1)] });
+
+    const result = await resolveRoutineFolder({ client }, "Cut");
+    expect(result).toMatchObject({ status: "resolved", folder: { id: 11 } });
   });
 });

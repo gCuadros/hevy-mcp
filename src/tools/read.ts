@@ -1,7 +1,7 @@
 import { toDomainWorkout } from "../hevy/adapter.js";
 import type { HevyClient } from "../hevy/client.js";
-import { fetchAllExerciseTemplates, fetchAllRoutines, fetchAllWorkouts } from "../hevy/fetchAll.js";
-import type { DomainExerciseTemplate, DomainRoutine, DomainWorkout } from "../domain/types.js";
+import { fetchAllExerciseTemplates, fetchAllRoutineFolders, fetchAllRoutines, fetchAllWorkouts } from "../hevy/fetchAll.js";
+import type { DomainExerciseTemplate, DomainRoutine, DomainRoutineFolder, DomainWorkout } from "../domain/types.js";
 
 export interface ReadDeps {
   client: HevyClient;
@@ -59,6 +59,48 @@ export async function listRoutines(deps: ReadDeps) {
 export async function getRoutine(deps: ReadDeps, input: { id: string }): Promise<DomainRoutine | null> {
   const routines = await fetchAllRoutines(deps.client);
   return routines.find((routine) => routine.id === input.id) ?? null;
+}
+
+export interface RoutineFolderCandidate {
+  id: number;
+  title: string;
+}
+
+function toFolderCandidate(folder: DomainRoutineFolder): RoutineFolderCandidate {
+  return { id: folder.id, title: folder.title };
+}
+
+export async function listRoutineFolders(deps: ReadDeps) {
+  const folders = await fetchAllRoutineFolders(deps.client);
+  return { folders: folders.map((folder) => ({ id: folder.id, index: folder.index, title: folder.title })) };
+}
+
+export type ResolveRoutineFolderResult =
+  | { status: "resolved"; folder: DomainRoutineFolder }
+  | { status: "ambiguous"; candidates: RoutineFolderCandidate[] }
+  | { status: "not-found" };
+
+/**
+ * Same contract as resolveExercise. Folder IDs are numbers rather than strings,
+ * so the reference is compared stringified — a model that read an ID off
+ * list-routine-folders will send it either way round.
+ */
+export async function resolveRoutineFolder(deps: ReadDeps, ref: string): Promise<ResolveRoutineFolderResult> {
+  const folders = await fetchAllRoutineFolders(deps.client);
+
+  const query = ref.trim();
+  const byId = folders.find((folder) => String(folder.id) === query);
+  if (byId) return { status: "resolved", folder: byId };
+
+  const lowered = query.toLowerCase();
+  const exact = folders.filter((folder) => folder.title.toLowerCase() === lowered);
+  if (exact.length === 1 && exact[0]) return { status: "resolved", folder: exact[0] };
+
+  const partial = folders.filter((folder) => folder.title.toLowerCase().includes(lowered));
+  if (partial.length === 1 && partial[0]) return { status: "resolved", folder: partial[0] };
+  if (partial.length > 1) return { status: "ambiguous", candidates: partial.map(toFolderCandidate) };
+
+  return { status: "not-found" };
 }
 
 export interface ExerciseCandidate {

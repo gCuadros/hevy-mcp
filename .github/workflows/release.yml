@@ -1,0 +1,58 @@
+name: Release
+
+# Manual on purpose. The versioning half of the release stays local: a bot-opened
+# "Version Packages" pull request is created with GITHUB_TOKEN, which does not
+# trigger workflows, so the `verify` check required by the main ruleset would
+# never report and that pull request could never be merged. Until the ruleset
+# grows a bypass or this uses a PAT, the flow is:
+#
+#   1. branch, `yarn run version` (with the `run` — see AGENTS.md), pull request, merge
+#   2. run this workflow against main
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write # pushes the version tag
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: yarn
+          # Without this npm never reads NODE_AUTH_TOKEN and the publish 401s.
+          registry-url: https://registry.npmjs.org
+
+      - run: yarn install --frozen-lockfile
+
+      # A pending changeset means main was never versioned, so package.json still
+      # holds the previous number and publishing now would ship the new code under
+      # the old version — or, more likely, do nothing at all and look like it worked.
+      - name: Refuse to publish an unversioned main
+        run: |
+          pending=$(find .changeset -name '*.md' ! -name README.md | wc -l | tr -d ' ')
+          if [ "$pending" != "0" ]; then
+            echo "::error::$pending changeset(s) still pending. Run 'yarn run version' on a branch, merge it, then release."
+            exit 1
+          fi
+
+      - run: yarn typecheck
+      - run: yarn test
+
+      # `prepublishOnly` builds, so dist/ is made by the publish itself and cannot
+      # drift from what is being shipped.
+      - run: yarn release
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Attaches a signed attestation tying the tarball to this commit and
+          # this workflow. Only obtainable from CI — a local `yarn release` cannot
+          # produce one.
+          NPM_CONFIG_PROVENANCE: "true"
+
+      # `changeset publish` tags the release locally; nothing pushes it for us.
+      - run: git push --follow-tags

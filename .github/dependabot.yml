@@ -1,0 +1,32 @@
+version: 2
+
+updates:
+  # Actions are pinned to mutable major tags (@v7). Dependabot is what turns that
+  # into a visible pull request instead of a silent change under the same tag —
+  # and what stops them ageing out: v4 was already running on a deprecated Node.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Grouped and monthly: this is a small dependency tree, and one pull request a
+  # month that CI has already type-checked, tested and packed is reviewable.
+  # Ungrouped weekly updates on a repo with a required check are just noise.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        patterns: ["*"]
+      production-dependencies:
+        dependency-type: production
+        patterns: ["*"]
+        # The MCP SDK and zod are what the wire format depends on; a major there
+        # is a change to review on its own, not inside a batch.
+        update-types: [minor, patch]
