@@ -21,12 +21,16 @@ updates:
       interval: monthly
     open-pull-requests-limit: 3
     groups:
+      # Majors stay out of both groups, so they arrive as their own pull request.
+      # Dependabot still opens them — being excluded from a group means ungrouped,
+      # not ignored. The first batch proved why: a TypeScript 6 → 7 bump, a whole
+      # compiler swap under `exactOptionalPropertyTypes` and
+      # `noUncheckedIndexedAccess`, rode in with three patch updates.
       dev-dependencies:
         dependency-type: development
         patterns: ["*"]
+        update-types: [minor, patch]
       production-dependencies:
         dependency-type: production
         patterns: ["*"]
-        # The MCP SDK and zod are what the wire format depends on; a major there
-        # is a change to review on its own, not inside a batch.
         update-types: [minor, patch]
