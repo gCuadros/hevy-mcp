@@ -5,6 +5,7 @@ import {
   exerciseTemplateDto,
   routineDto,
   routineExerciseDto,
+  routineFolderDto,
   routineSetDto,
 } from "../hevy/testFixtures.js";
 import { createRoutine, updateRoutine } from "./write.js";
@@ -72,6 +73,66 @@ describe("create-routine", () => {
 
     expect(result).toMatchObject({ status: "unresolved", problems: [{ exercise: "Zercher Nonsense", status: "not-found" }] });
     expect(writes).toHaveLength(0);
+  });
+
+  describe("folders", () => {
+    const folders = [routineFolderDto(11, "Cut Season II", 0), routineFolderDto(22, "Cut Season I", 1), routineFolderDto(33, "Deload", 2)];
+
+    it("resolves a folder name to its ID", async () => {
+      const { client, writes } = buildWriteTestClient({ routineFolders: folders, exerciseTemplates: templates });
+
+      const result = await createRoutine(
+        { client },
+        { title: "Push", folder: "Deload", exercises: [{ exercise: "TRX Row", sets: [{ reps: 10 }] }] },
+      );
+
+      expect(result.status).toBe("written");
+      expect(writes[0]?.body.routine.folder_id).toBe(33);
+    });
+
+    it("accepts a folder ID passed as a string", async () => {
+      const { client, writes } = buildWriteTestClient({ routineFolders: folders, exerciseTemplates: templates });
+
+      await createRoutine({ client }, { title: "Push", folder: "11", exercises: [{ exercise: "TRX Row", sets: [{ reps: 10 }] }] });
+
+      expect(writes[0]?.body.routine.folder_id).toBe(11);
+    });
+
+    it("writes nothing when the folder name matches two folders", async () => {
+      const { client, writes } = buildWriteTestClient({ routineFolders: folders, exerciseTemplates: templates });
+
+      const result = await createRoutine(
+        { client },
+        { title: "Push", folder: "Cut Season", exercises: [{ exercise: "TRX Row", sets: [{ reps: 10 }] }] },
+      );
+
+      expect(result).toMatchObject({
+        status: "folder-ambiguous",
+        folder: "Cut Season",
+        candidates: [{ id: 11, title: "Cut Season II" }, { id: 22, title: "Cut Season I" }],
+      });
+      expect(writes).toHaveLength(0);
+    });
+
+    it("writes nothing when the folder does not exist, rather than falling back to the default one", async () => {
+      const { client, writes } = buildWriteTestClient({ routineFolders: folders, exerciseTemplates: templates });
+
+      const result = await createRoutine(
+        { client },
+        { title: "Push", folder: "Bulk Season", exercises: [{ exercise: "TRX Row", sets: [{ reps: 10 }] }] },
+      );
+
+      expect(result).toMatchObject({ status: "folder-not-found", folder: "Bulk Season" });
+      expect(writes).toHaveLength(0);
+    });
+
+    it("sends a null folder when none is asked for", async () => {
+      const { client, writes } = buildWriteTestClient({ routineFolders: folders, exerciseTemplates: templates });
+
+      await createRoutine({ client }, { title: "Push", exercises: [{ exercise: "TRX Row", sets: [{ reps: 10 }] }] });
+
+      expect(writes[0]?.body.routine.folder_id).toBeNull();
+    });
   });
 });
 

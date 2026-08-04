@@ -43,11 +43,12 @@ Run `health-check` any time to confirm the connection. Every other tool fetches 
 
 ## Tools
 
-Twelve read tools, all marked `readOnlyHint`:
+Thirteen read tools, all marked `readOnlyHint`:
 
 - `health-check` — connection status
 - `get-workouts`, `get-workout` — list/inspect workouts
 - `list-routines`, `get-routine` — list/inspect routines
+- `list-routine-folders` — the folders routines are organised into, with their IDs
 - `search-exercises`, `get-exercise-history` — resolve an exercise by name and see its logged history
 - `get-progress`, `get-records` — estimated-1RM trend and PRs (1/3/5/8RM) per exercise
 - `get-volume-report` — effective sets and tonnage per muscle group per week
@@ -56,7 +57,7 @@ Twelve read tools, all marked `readOnlyHint`:
 
 Two write tools, declared as writes so your client asks first:
 
-- `create-routine` — build a new routine from exercise names
+- `create-routine` — build a new routine from exercise names, optionally into a folder named rather than numbered
 - `update-routine` — edit an existing routine; passing an exercise list replaces the old one outright (`destructiveHint`)
 
 ## Resources

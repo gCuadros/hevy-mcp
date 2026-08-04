@@ -99,7 +99,7 @@ per-user state to isolate, because there is no state.
 
 ### Reads and analytics, plus routine writes only
 
-Twelve read/analytics tools, plus exactly two writes: `create-routine` and
+Thirteen read/analytics tools, plus exactly two writes: `create-routine` and
 `update-routine`.
 
 **Workout history is never written.** It is the raw material for every number this server
