@@ -6,10 +6,6 @@ Requires **Hevy PRO** and a Hevy API key (Hevy app → Settings → API).
 
 ## Install
 
-> **Not on npm yet.** The `npx` commands below work from the first published
-> release onward. Until then, clone this repo, run `yarn install && yarn build`,
-> and point your client at `node /absolute/path/to/hevy-mcp/dist/stdio.js`.
-
 ```
 claude mcp add hevy -e HEVY_API_KEY=your_key_here -- npx -y hevy-coach-mcp
 ```

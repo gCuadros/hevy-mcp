@@ -42,8 +42,6 @@ If your client can spawn a local process, use local — it's fewer moving parts 
 
 Get your API key from the Hevy app: **Settings → API**. Every example below is the same server started the same way; only the file and key names change.
 
-> **Not on npm yet.** The `npx` examples in this section work from the first published release onward. Until then, clone the repo, run `yarn install && yarn build`, and replace `npx` / `["-y", "hevy-coach-mcp"]` with `node` / `["/absolute/path/to/hevy-mcp/dist/stdio.js"]`. Everything else — the env var, the tools, the remote setup below — is unaffected.
-
 ### Claude Code
 
 ```
