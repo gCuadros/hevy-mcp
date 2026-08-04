@@ -1,6 +1,6 @@
 {
   "name": "hevy-coach-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "MCP server for Hevy: live training analytics — e1RM, PRs, volume, consistency — plus routine writing. Your workout history stays read-only.",
   "license": "MIT",
   "type": "module",
