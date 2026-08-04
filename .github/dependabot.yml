@@ -1,8 +1,9 @@
 version: 2
 
 updates:
-  # Actions are pinned to mutable major tags (@v4). Dependabot is what turns that
-  # into a visible pull request instead of a silent change under the same tag.
+  # Actions are pinned to mutable major tags (@v7). Dependabot is what turns that
+  # into a visible pull request instead of a silent change under the same tag —
+  # and what stops them ageing out: v4 was already running on a deprecated Node.
   - package-ecosystem: github-actions
     directory: /
     schedule:
