@@ -45,8 +45,8 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "jose": "^6.2.3",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "jose": "^6.2.7",
     "zod": "^4.4.3"
   }
 }
