@@ -2,7 +2,7 @@ import type { HevyClient } from "../hevy/client.js";
 import { fetchAllRoutines } from "../hevy/fetchAll.js";
 import type { Routine, RoutineWriteExercise, RoutineWriteSet } from "../hevy/schemas.js";
 import type { SetType } from "../domain/types.js";
-import { resolveExercise, type ExerciseCandidate, type ReadDeps } from "./read.js";
+import { resolveExercise, resolveRoutineFolder, type ExerciseCandidate, type ReadDeps, type RoutineFolderCandidate } from "./read.js";
 
 export type WriteDeps = ReadDeps;
 
@@ -97,18 +97,37 @@ function summarize(routine: Routine): RoutineSummary {
 export interface CreateRoutineInput {
   title: string;
   notes?: string | undefined;
-  folderId?: number | null | undefined;
+  folder?: string | undefined;
   exercises: RoutineExerciseInput[];
 }
 
-export async function createRoutine(deps: WriteDeps, input: CreateRoutineInput): Promise<WriteResult<RoutineSummary>> {
+export type CreateRoutineResult =
+  | WriteResult<RoutineSummary>
+  | { status: "folder-ambiguous"; folder: string; candidates: RoutineFolderCandidate[] }
+  | { status: "folder-not-found"; folder: string };
+
+export async function createRoutine(deps: WriteDeps, input: CreateRoutineInput): Promise<CreateRoutineResult> {
+  // Folder before exercises: it is one short list against the whole catalogue,
+  // so a folder name that does not resolve fails on the cheap lookup. Both run
+  // before anything is sent — a routine dropped in the wrong folder cannot be
+  // moved back through the API.
+  let folderId: number | null = null;
+  if (input.folder !== undefined) {
+    const folder = await resolveRoutineFolder(deps, input.folder);
+    if (folder.status === "ambiguous") {
+      return { status: "folder-ambiguous", folder: input.folder, candidates: folder.candidates };
+    }
+    if (folder.status === "not-found") return { status: "folder-not-found", folder: input.folder };
+    folderId = folder.folder.id;
+  }
+
   const resolved = await toWriteExercises(deps, input.exercises);
   if ("problems" in resolved) return { status: "unresolved", problems: resolved.problems };
 
   const routine = await deps.client.createRoutine({
     routine: {
       title: input.title,
-      folder_id: input.folderId ?? null,
+      folder_id: folderId,
       ...(input.notes === undefined ? {} : { notes: input.notes }),
       exercises: resolved.exercises,
     },

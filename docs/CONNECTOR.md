@@ -169,7 +169,7 @@ ChatGPT only accepts remote servers over public HTTPS — there is no way to poi
 Worth knowing before you try:
 
 - **Developer mode is not on every plan.** Which plans get it, and whether an admin has to enable it first under Settings → Permissions & Roles → Connected Data, is OpenAI's call and has changed more than once. If you can't find the toggle, that's the reason — nothing here will fix it.
-- **The two write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine` and `update-routine` are declared as writes on purpose, so you get the prompt; the twelve read tools don't.
+- **The two write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine` and `update-routine` are declared as writes on purpose, so you get the prompt; the thirteen read tools don't.
 - **Deep Research mode won't see it.** ChatGPT's Deep Research only calls connector tools named `search` and `fetch`; this server exposes training-analytics tools instead. Use it in normal chat with Developer Mode on.
 
 ### Claude Code
@@ -328,6 +328,7 @@ There are also four prompts (`weekly-review`, `program-audit`, `deload-check`, `
 - `health-check` — connection status
 - `get-workouts`, `get-workout` — list and inspect workouts
 - `list-routines`, `get-routine` — list and inspect routines
+- `list-routine-folders` — the folders you organise routines into
 - `search-exercises`, `get-exercise-history` — resolve an exercise by name, see everything you've logged for it
 
 **Analytics**
@@ -338,10 +339,10 @@ There are also four prompts (`weekly-review`, `program-audit`, `deload-check`, `
 - `compare-periods` — volume and workout-count deltas between two date ranges
 
 **Writing** — the only two tools that change anything, both declared as writes so your client asks first
-- `create-routine` — build a new routine from exercise names
+- `create-routine` — build a new routine from exercise names, optionally straight into one of your folders
 - `update-routine` — edit an existing routine; passing an exercise list replaces the old one outright
 
-You can name exercises the way you actually say them ("incline bench", "RDL"). If a name is ambiguous the server returns the candidates and asks rather than picking one for you — a wrong guess here would silently corrupt every number downstream.
+You can name exercises and folders the way you actually say them ("incline bench", "RDL", "Cut Season"). If a name is ambiguous the server returns the candidates and asks rather than picking one for you — a wrong guess here would silently corrupt every number downstream, or file a routine somewhere Hevy's API can't move it back from.
 
 ## Limitations
 

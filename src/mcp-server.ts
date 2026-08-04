@@ -17,6 +17,7 @@ import {
   getRoutine,
   getWorkout,
   getWorkouts,
+  listRoutineFolders,
   listRoutines,
   searchExercises,
   type ReadDeps,
@@ -106,6 +107,20 @@ export function createServer(deps: Deps): McpServer {
       const routine = await getRoutine(deps, { id });
       if (!routine) return formatToolResult(`Routine ${id} not found`, { error: "not_found" }, true);
       return formatToolResult(routine.title, routine);
+    },
+  );
+
+  server.registerTool(
+    "list-routine-folders",
+    {
+      title: "List routine folders",
+      description:
+        "Lists the folders the user organises routines into, with their IDs. Call this when the user mentions a folder by name and you need to know whether it exists, or to show what folders are available before creating a routine. create-routine resolves folder names on its own, so this is not a required step before it — use it to disambiguate when it comes back with candidates, or when the user asks what folders they have.",
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const result = await listRoutineFolders(deps);
+      return formatToolResult(`Found ${result.folders.length} folder(s)`, result);
     },
   );
 
@@ -253,12 +268,21 @@ export function createServer(deps: Deps): McpServer {
         title: z.string().describe("Routine title as it will appear in Hevy"),
         exercises: z.array(exerciseInputSchema),
         notes: z.string().optional(),
-        folderId: z.number().int().nullable().optional().describe("Omit for the default 'My Routines' folder"),
+        folder: z
+          .string()
+          .optional()
+          .describe("Folder name or ID, from list-routine-folders. Ambiguous names are rejected, not guessed. Omit for the default 'My Routines'."),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
     async (input) => {
       const result = await createRoutine(deps, input);
+      if (result.status === "folder-not-found") {
+        return formatToolResult(`Nothing was written — no folder matching "${result.folder}"`, result, true);
+      }
+      if (result.status === "folder-ambiguous") {
+        return formatToolResult(`Nothing was written — "${result.folder}" matches more than one folder`, result, true);
+      }
       if (result.status === "unresolved") {
         return formatToolResult("Nothing was written — some exercises could not be resolved", result, true);
       }
