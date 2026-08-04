@@ -23,6 +23,7 @@ import {
   type ReadDeps,
 } from "./tools/read.js";
 import { createRoutine, updateRoutine, type WriteDeps } from "./tools/write.js";
+import { VERSION } from "./version.js";
 
 type Deps = ToolDeps & ReadDeps & AnalyticsDeps & WriteDeps;
 
@@ -33,7 +34,7 @@ function ambiguousOrNotFound(subject: string, result: { status: "ambiguous" | "n
 
 /** Transport-agnostic McpServer: same instance is shared by stdio.ts and http.ts. */
 export function createServer(deps: Deps): McpServer {
-  const server = new McpServer({ name: "hevy-coach-mcp", version: "0.0.0" });
+  const server = new McpServer({ name: "hevy-coach-mcp", version: VERSION });
 
   server.registerTool(
     "health-check",

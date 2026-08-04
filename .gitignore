@@ -12,6 +12,9 @@ dist/
 # permission allowlist; only local overrides stay out.
 .claude/settings.local.json
 
+# Scratch state written by tooling that happens to be installed on one machine.
+.claude/.headroom_wrap_marker.json
+
 # Maintainer's local working notebooks, deliberately not in the repo.
 # Everything an agent needs is in AGENTS.md.
 PLAN.md
