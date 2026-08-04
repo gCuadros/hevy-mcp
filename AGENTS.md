@@ -33,7 +33,14 @@ yarn build       # rm -rf dist && tsc -p tsconfig.build.json
 ```
 
 Run all three before you call any task finished. CI (`.github/workflows/ci.yml`) runs
-exactly the same three, so a green local run means a green PR.
+exactly the same three, then packs the tarball and asserts what is inside it: that
+`dist/stdio.js` is present and still has its shebang, and that no compiled test or
+`dist/store/` came along. That step needs nothing from you locally — it guards a mistake
+that is invisible until someone opens the published package.
+
+CI has a second job, `changeset`, which fails when a pull request adds no changeset. It
+is **not** a required check, because docs-only and chore branches have nothing to
+announce: add the changeset, or label the pull request `no-changeset`.
 
 Two extra checks, only when relevant:
 
@@ -252,6 +259,14 @@ See `.env.example` for every environment variable and what happens when it is mi
   rewrites `package.json`, *then* fires the `version` script as a lifecycle hook, so
   changesets bumps a second time and the git tag points at the wrong version. `yarn
   release` publishes and has no such collision.
+- **Publishing to npm is the `Release` workflow**, run by hand from the Actions tab
+  against `main`. It refuses to run while any changeset is still pending, so the order
+  is: branch → `yarn run version` → PR → merge → run the workflow. Publishing from a
+  laptop still works, but only CI can attach a provenance attestation.
+- The versioning half is deliberately *not* automated. A "Version Packages" pull request
+  opened by `GITHUB_TOKEN` does not trigger workflows, so the `verify` check that the
+  `main` ruleset requires would never report and that pull request could never be
+  merged. Changing this needs a PAT or a ruleset bypass, not just the changesets action.
 - Deployment to Vercel is done manually by the maintainer. Do not run `vercel` commands.
 
 ## Files that are not in this repo
