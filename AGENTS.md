@@ -147,6 +147,17 @@ server by finding that call at load time; guarding it makes the whole deployment
 with "No entrypoint found". This has already broken production once, when the file was
 renamed. Leave the shape alone, and do not move or rename `src/server.ts`.
 
+The same builder also type-checks the project itself, which pins the compiler:
+**TypeScript stays on 6.x.** TypeScript 7 is the native port and dropped the classic
+JS compiler API — `ts.sys` and `ts.readConfigFile` are both `undefined` on 7.0.2 —
+while `@vercel/backends` calls `ts.readConfigFile(tsconfig, ts.sys.readFile)`. On 7
+every deployment dies with "Cannot read properties of undefined (reading 'readFile')"
+*after* `yarn build` has already succeeded. The caret in `devDependencies` holds it,
+and `.github/dependabot.yml` ignores the major with the same explanation.
+
+Note what this means for validation: `yarn typecheck && yarn test && yarn build` all
+pass on TypeScript 7. A green CI run says nothing about whether the thing deploys.
+
 ## Rules
 
 ### Always

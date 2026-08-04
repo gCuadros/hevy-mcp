@@ -20,6 +20,20 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    ignore:
+      # TypeScript 7 is the native port, and it dropped the classic JS compiler
+      # API: `ts.sys` and `ts.readConfigFile` are both undefined on 7.0.2, where
+      # 6.0.3 has them. Vercel's zero-config Node builder type-checks the project
+      # by calling `ts.readConfigFile(tsconfig, ts.sys.readFile)` from
+      # @vercel/backends, so on TypeScript 7 every deployment dies with
+      # "Cannot read properties of undefined (reading 'readFile')" — after our own
+      # build has already succeeded. Nothing in this repo can work around it.
+      #
+      # Lift this once @vercel/backends handles TypeScript 7; re-check by bumping
+      # typescript locally and watching a preview deployment, not just CI. CI
+      # passes on 7 — it was a green `verify` that let this through.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
     groups:
       # Majors stay out of both groups, so they arrive as their own pull request.
       # Dependabot still opens them — being excluded from a group means ungrouped,
