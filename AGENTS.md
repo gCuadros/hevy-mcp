@@ -294,13 +294,28 @@ See `.env.example` for every environment variable and what happens when it is mi
   release` publishes and has no such collision.
 - **Publishing to npm is the `Release` workflow**, run by hand from the Actions tab
   against `main`. It refuses to run while any changeset is still pending, so the order
-  is: branch → `yarn run version` → PR → merge → run the workflow. Publishing from a
-  laptop still works, but only CI can attach a provenance attestation.
+  is: branch → `yarn run version` → PR → merge → run the workflow.
+- **There is no `NPM_TOKEN` and there should never be one.** The workflow publishes
+  with npm trusted publishing (OIDC): npm verifies the `release.yml` workflow in this
+  repo and attaches provenance automatically. The trusted publisher is configured on
+  npmjs.com (package settings → Trusted Publisher → GitHub Actions → `release.yml`),
+  and that page only exists once the package does — so the *first* publish is the one
+  exception: `yarn release` from the maintainer's laptop, then configure the trusted
+  publisher, then set Publishing access to "Require 2FA and disallow tokens". Stolen
+  long-lived npm tokens are how the recent registry worms spread; this setup leaves
+  nothing to steal.
 - The versioning half is deliberately *not* automated. A "Version Packages" pull request
   opened by `GITHUB_TOKEN` does not trigger workflows, so the `verify` check that the
   `main` ruleset requires would never report and that pull request could never be
   merged. Changing this needs a PAT or a ruleset bypass, not just the changesets action.
 - Deployment to Vercel is done manually by the maintainer. Do not run `vercel` commands.
+- **GitHub account operations belong to the maintainer, full stop.** The `gh` CLI on
+  this machine is signed into two accounts — the maintainer's personal one and their
+  *corporate* one. Agents work locally (code, tests, docs) and stop there: never run
+  `gh auth` (switch, login, logout, refresh, setup-git), never read or use a token
+  (`gh auth token`, credential helpers), never push, and never create PRs, rulesets
+  or repo settings. Never act as the corporate account in particular — do not even
+  read with it. Hand the maintainer the exact command instead; they run it.
 
 ## Files that are not in this repo
 
