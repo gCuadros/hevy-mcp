@@ -1,10 +1,18 @@
+import {
+  bodyweightAt,
+  bodyweightSeries,
+  bodyweightTrend,
+  relativeToBodyweight,
+  type BodyweightPoint,
+  type BodyweightTrend,
+} from "../engine/bodyweight.js";
 import { comparePeriods, type PeriodComparison } from "../engine/compare.js";
 import { computeConsistency, type ConsistencyReport } from "../engine/consistency.js";
 import { bestSetE1rm, type E1rmFormula } from "../engine/e1rm.js";
 import { buildMuscleGroupResolver } from "../engine/muscle-map.js";
 import { recordsByBracket, type RecordEntry, type RepBracket } from "../engine/records.js";
 import { weeklyVolumeByMuscleGroup, type WeeklyMuscleVolume } from "../engine/volume.js";
-import { fetchAllExerciseTemplates, fetchAllWorkouts } from "../hevy/fetchAll.js";
+import { fetchAllBodyMeasurements, fetchAllExerciseTemplates, fetchAllWorkouts } from "../hevy/fetchAll.js";
 import { resolveExercise, type ExerciseCandidate, type ReadDeps } from "./read.js";
 
 export type AnalyticsDeps = ReadDeps;
@@ -15,17 +23,34 @@ export interface ProgressPoint {
   weightKg: number;
   reps: number;
   e1rm: number;
+  /** Only present when relativeToBodyweight was asked for and a weigh-in sits near the session. */
+  bodyweightKg?: number;
+  bodyweightMeasuredOn?: string;
+  /** e1RM as a multiple of the bodyweight above. */
+  relativeE1rm?: number;
 }
 
-export type GetProgressResult =
-  | { status: "resolved"; template: ExerciseCandidate; formula: E1rmFormula; progress: ProgressPoint[] }
-  | { status: "ambiguous"; candidates: ExerciseCandidate[] }
-  | { status: "not-found" };
+/** How many sessions in a progress series could be matched to a weigh-in, so partial coverage is visible rather than implied. */
+export interface BodyweightCoverage {
+  sessionsWithBodyweight: number;
+  sessionsTotal: number;
+  weighInsFound: number;
+}
 
-/** e1RM trend over time (best set per session) for a given exercise. */
+export interface ProgressReport {
+  status: "resolved";
+  template: ExerciseCandidate;
+  formula: E1rmFormula;
+  progress: ProgressPoint[];
+  bodyweightCoverage?: BodyweightCoverage;
+}
+
+export type GetProgressResult = ProgressReport | { status: "ambiguous"; candidates: ExerciseCandidate[] } | { status: "not-found" };
+
+/** e1RM trend over time (best set per session) for a given exercise, optionally expressed relative to bodyweight. */
 export async function getProgress(
   deps: AnalyticsDeps,
-  input: { exercise: string; formula?: E1rmFormula | undefined },
+  input: { exercise: string; formula?: E1rmFormula | undefined; relativeToBodyweight?: boolean | undefined },
 ): Promise<GetProgressResult> {
   const resolved = await resolveExercise(deps, input.exercise);
   if (resolved.status !== "resolved") return resolved;
@@ -50,12 +75,49 @@ export async function getProgress(
   }
 
   progress.sort((a, b) => a.date.localeCompare(b.date));
-  return {
+  const result: ProgressReport = {
     status: "resolved",
     template: { id: resolved.template.id, title: resolved.template.title, primaryMuscleGroup: resolved.template.primaryMuscleGroup },
     formula,
     progress,
   };
+
+  // Opt-in, because measurements paginate ten to a page: someone who weighs in daily
+  // would pay a second full walk of the API on every progress question that never
+  // mentioned bodyweight.
+  if (input.relativeToBodyweight) {
+    const series = bodyweightSeries(await fetchAllBodyMeasurements(deps.client));
+    let matched = 0;
+    for (const point of progress) {
+      const sample = bodyweightAt(series, point.date.slice(0, 10));
+      if (!sample) continue;
+      const relative = relativeToBodyweight(point.e1rm, sample.weightKg);
+      if (relative === null) continue;
+      point.bodyweightKg = sample.weightKg;
+      point.bodyweightMeasuredOn = sample.measuredOn;
+      point.relativeE1rm = relative;
+      matched += 1;
+    }
+    result.bodyweightCoverage = { sessionsWithBodyweight: matched, sessionsTotal: progress.length, weighInsFound: series.length };
+  }
+
+  return result;
+}
+
+export interface GetBodyweightTrendResult {
+  trend: BodyweightTrend | null;
+  /** Every weigh-in in the range, oldest first, so the model can see the shape and not just the endpoints. */
+  series: BodyweightPoint[];
+}
+
+/** Bodyweight change over a date range: total, percentage and weekly rate. */
+export async function getBodyweightTrend(
+  deps: AnalyticsDeps,
+  input: { from?: string | undefined; to?: string | undefined } = {},
+): Promise<GetBodyweightTrendResult> {
+  const series = bodyweightSeries(await fetchAllBodyMeasurements(deps.client));
+  const inRange = series.filter((point) => (!input.from || point.date >= input.from) && (!input.to || point.date <= input.to));
+  return { trend: bodyweightTrend(series, input), series: inRange };
 }
 
 export type GetRecordsResult =

@@ -39,18 +39,19 @@ Run `health-check` any time to confirm the connection. Every other tool fetches 
 
 ## Tools
 
-Fourteen read tools, all marked `readOnlyHint`:
+Fifteen read tools, all marked `readOnlyHint`:
 
 - `health-check` — connection status
 - `get-workouts`, `get-workout` — list/inspect workouts
 - `list-routines`, `get-routine` — list/inspect routines
 - `list-routine-folders` — the folders routines are organised into, with their IDs
 - `search-exercises`, `get-exercise-history` — resolve an exercise by name and see its logged history
-- `get-progress`, `get-records` — estimated-1RM trend and PRs (1/3/5/8RM) per exercise
+- `get-progress`, `get-records` — estimated-1RM trend and PRs (1/3/5/8RM) per exercise; `get-progress` can also report each session against the bodyweight you were carrying
 - `get-volume-report` — effective sets and tonnage per muscle group per week
 - `get-consistency` — training frequency, streak, longest gap
 - `compare-periods` — volume/workout-count diff between two date ranges
 - `get-body-measurements` — logged bodyweight and measurements, newest first
+- `get-bodyweight-trend` — weight change over a range: total, percentage and rate per week
 
 Four write tools, declared as writes so your client asks first:
 

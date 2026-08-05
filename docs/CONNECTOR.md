@@ -319,6 +319,8 @@ A `500` on step 1 means the configuration is wrong. The server logs which of the
 - "Audit my program. Is anything in my routines never actually getting trained?"
 - "Log today's weigh-in: 73.4 kg."
 - "My bench has stalled for a month — has my bodyweight moved in the same period?"
+- "Am I cutting too fast? What's my rate per week?"
+- "Am I actually getting stronger, or just heavier? Show my squat relative to bodyweight."
 
 There are also four prompts (`weekly-review`, `program-audit`, `deload-check`, `prepare-session`) that walk the assistant through the right sequence of tool calls for these questions.
 
@@ -333,11 +335,12 @@ There are also four prompts (`weekly-review`, `program-audit`, `deload-check`, `
 - `search-exercises`, `get-exercise-history` — resolve an exercise by name, see everything you've logged for it
 
 **Analytics**
-- `get-progress` — estimated-1RM trend for an exercise over time
+- `get-progress` — estimated-1RM trend for an exercise over time, optionally against the bodyweight you were carrying at each session
 - `get-records` — PRs at 1/3/5/8 reps
 - `get-volume-report` — effective sets and tonnage per muscle group per week
 - `get-consistency` — training frequency, current streak, longest gap
 - `compare-periods` — volume and workout-count deltas between two date ranges
+- `get-bodyweight-trend` — how your weight has moved over a range: total change, percentage, and rate per week
 
 **Writing** — the only four tools that change anything, all declared as writes so your client asks first
 - `create-routine` — build a new routine from exercise names, optionally straight into one of your folders
@@ -351,7 +354,7 @@ You can name exercises and folders the way you actually say them ("incline bench
 
 Everything above is what the connector does today; this section is direction, not a promise, and nothing here is built yet. It is here so you can see what the thing is trying to become before you decide to connect it.
 
-- **Analytics that know your bodyweight.** Strength relative to what you weigh, and volume read against a cut or a bulk instead of in isolation. Now that measurements are readable, this is the next thing.
+- **Volume read against a cut or a bulk** instead of in isolation. Strength relative to bodyweight already landed — `get-bodyweight-trend`, and `get-progress` against the weight you were carrying — but tonnage and set counts are still reported as if your weight never moved.
 - **Richer history per exercise.** Hevy has a dedicated endpoint for one exercise's full history; using it directly would make progression questions faster and more exact than reconstructing them from every workout.
 - **More of what you already track in Hevy**, where it earns its place — the test being that you state the value and can see and correct it in the app.
 
@@ -365,6 +368,7 @@ What will not happen, at any point: writing workouts. Not behind a setting, not 
 - **`update-routine` replaces, it does not merge.** Hevy only offers a whole-routine PUT. The server rebuilds the payload from what Hevy currently holds so an unrelated change can't flatten your rest timers or rep ranges, but if you pass a new exercise list it replaces the old one entirely. There is no undo.
 - **Routine notes can be set but not preserved.** Hevy returns per-exercise notes on read but not routine-level ones, so an update that doesn't pass `notes` cannot carry over what was there.
 - **Hevy PRO required.** The API is a PRO feature. There is no way around this.
+- **Bodyweight-relative numbers are only as good as your weigh-ins.** A session is matched to the nearest weigh-in within two weeks, in either direction; sessions with nothing nearby come back with no bodyweight rather than an interpolated one, and the answer says how many were covered. Two weigh-ins are the minimum for a trend. If you don't weigh yourself in Hevy, these tools have nothing to work with — `log-body-measurement` is one way to start.
 - **Estimated 1RM is estimated.** e1RM is computed with standard formulas (Epley/Brzycki) from your logged sets. It's a good trend line and a bad prediction of what you'd actually hit on the day.
 - **Analytics over a long history takes a moment.** With no cache, a question that scans your whole training history re-fetches it, page by page, each time. On a multi-year account expect a few seconds.
 - **Only what Hevy exposes.** RPE and notes are surfaced only where Hevy's API provides them, and body measurements are only as complete as what you've logged — most accounts have very few entries, or none.

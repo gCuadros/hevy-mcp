@@ -44,8 +44,10 @@ export function registerPrompts(server: McpServer): void {
       userMessage(
         "Assess whether I should take a deload week. Call get-consistency for frequency/streak, get-volume-report " +
           "for the last several weeks of tonnage per muscle group, and get-progress for my main lifts to check for " +
-          "stalling or regressing e1RM despite consistent training. Deload signals: rising volume with flat or " +
-          "dropping e1RM, or volume in the last 1-2 weeks well above the recent average. State a clear yes/no and why.",
+          "stalling or regressing e1RM despite consistent training. Also call get-bodyweight-trend: strength that " +
+          "stalls while weight is dropping is a cut behaving normally, not fatigue, and that changes the answer. " +
+          "Deload signals: rising volume with flat or dropping e1RM at stable bodyweight, or volume in the last 1-2 " +
+          "weeks well above the recent average. State a clear yes/no and why.",
       ),
   );
 

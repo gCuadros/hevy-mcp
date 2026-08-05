@@ -5,6 +5,7 @@ import { registerPrompts } from "./prompts.js";
 import { buildResources } from "./resources.js";
 import {
   comparePeriodsTool,
+  getBodyweightTrend,
   getConsistency,
   getProgress,
   getRecords,
@@ -146,6 +147,27 @@ export function createServer(deps: Deps): McpServer {
   );
 
   server.registerTool(
+    "get-bodyweight-trend",
+    {
+      title: "Get bodyweight trend",
+      description:
+        "Returns how the user's bodyweight has moved over a date range: total change in kg and percent, the weekly rate, the lightest and heaviest weigh-in, and every weigh-in in the range. Use it for 'is my cut on track', 'how fast am I gaining', or before judging whether a strength stall is really a weight change. Needs at least two weigh-ins in the range; below that the trend is null and only the weigh-ins come back, because one weight is not a trend. Prefer get-progress with relativeToBodyweight when the question is about a specific lift rather than the weight itself.",
+      inputSchema: {
+        from: z.string().optional().describe("Earliest date to include, YYYY-MM-DD"),
+        to: z.string().optional().describe("Latest date to include, YYYY-MM-DD"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (input) => {
+      const result = await getBodyweightTrend(deps, input);
+      const summary = result.trend
+        ? `${result.trend.changeKg >= 0 ? "+" : ""}${result.trend.changeKg} kg over ${result.trend.spanDays} day(s)`
+        : `${result.series.length} weigh-in(s) — not enough for a trend`;
+      return formatToolResult(summary, result);
+    },
+  );
+
+  server.registerTool(
     "search-exercises",
     {
       title: "Search exercises",
@@ -189,15 +211,16 @@ export function createServer(deps: Deps): McpServer {
     {
       title: "Get exercise progress",
       description:
-        "Returns the estimated-1RM trend over time (best set per session, Epley by default) for a given exercise. Use this to answer 'have I progressed on X'. Accepts a human name or template ID; ambiguous names return candidates instead of guessing.",
+        "Returns the estimated-1RM trend over time (best set per session, Epley by default) for a given exercise. Use this to answer 'have I progressed on X'. Set relativeToBodyweight when the question involves the user's weight — training through a cut or a bulk, a weight class, 'am I getting stronger or just heavier' — and each session also carries the nearest logged bodyweight and the e1RM as a multiple of it. Leave it off otherwise: it costs a second fetch, and sessions with no weigh-in within two weeks simply come back without those fields. Accepts a human name or template ID; ambiguous names return candidates instead of guessing.",
       inputSchema: {
         exercise: z.string().describe("Exercise name or template ID"),
         formula: z.enum(["epley", "brzycki"]).optional().describe("e1RM formula (default epley)"),
+        relativeToBodyweight: z.boolean().optional().describe("Also express each session's e1RM as a multiple of the nearest logged bodyweight (default false)"),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ exercise, formula }) => {
-      const result = await getProgress(deps, { exercise, formula });
+    async ({ exercise, formula, relativeToBodyweight }) => {
+      const result = await getProgress(deps, { exercise, formula, relativeToBodyweight });
       if (result.status !== "resolved") return ambiguousOrNotFound(exercise, result);
       return formatToolResult(`${result.progress.length} session(s) with an e1RM for ${result.template.title}`, result);
     },
