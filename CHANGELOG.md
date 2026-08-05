@@ -1,5 +1,78 @@
 # Changelog
 
+## 0.4.0
+
+### Minor Changes
+
+- 08e2b3a: Per-exercise questions now go through Hevy's dedicated exercise-history endpoint instead
+  of downloading the whole training log and filtering it. That endpoint does not paginate —
+  it returns an exercise's entire history in one response — so `get-exercise-history`,
+  `get-progress` and `get-records` make one request where they used to make one per ten
+  workouts. On a 128-workout account four such calls went from 5.2s to 2.0s, and the gap
+  widens the longer you have been training.
+
+  The numbers are unchanged: `get-progress` and `get-records` were checked against a real
+  account before and after, and the output is byte-for-byte identical.
+
+  `get-exercise-history` gains from the switch. Every session now carries the workout's
+  title, every set carries its type (warmup, normal, failure, dropset), cardio sets carry
+  distance and duration instead of coming back as empty rows, and `totalSessions` reports
+  how many sessions exist regardless of the limit you asked for.
+
+  One field changed shape: a set's `index` is now `order`. The history endpoint sends no set
+  index, so this is the position the set came back in — the order it was logged — and it is
+  named differently because it is derived here rather than reported by Hevy.
+
+- fa769e0: New `create-routine-folder` tool. The connector could already file a routine into a
+  folder by name, but only into one that already existed — asking for a new folder meant
+  leaving the conversation and making it by hand in the app.
+
+  A title that already exists is never created a second time: the existing folder comes
+  back instead. Hevy's API has no delete, so a duplicate would be permanent, and it would
+  make that name ambiguous from then on — `create-routine` refuses to guess between two
+  folders called the same thing, so neither of them could be used again.
+
+  Hevy puts every new folder at the top of the list, shifting the others down. That is the
+  API's behaviour, not a choice this server makes.
+
+- 176ce55: Body measurements: `get-body-measurements` reads what you've logged, `log-body-measurement`
+  records a weight or a measurement for a date you state.
+
+  This is the first write outside routines, so the promise on the connect page, in
+  `docs/CONNECTOR.md` and in the README has been rewritten to say what is actually
+  guaranteed. It was "routines are the only thing written", which described the tool list
+  rather than the rule. The rule is: **your workout history is never written.** That is the
+  line, it does not move, and everything else is only ever what you told the assistant to
+  record.
+
+  Logging a date that already has an entry updates the metrics you gave and keeps the rest
+  of that day's record. Hevy's own endpoints make that harder than it sounds: `POST` answers
+  409 once a date exists, and `PUT` nulls every field the payload leaves out, so logging a
+  weigh-in would have silently wiped the body-fat percentage stored beside it. The stored
+  entry is read and merged first, and the answer reports which metrics were preserved.
+
+  Nothing is inferred: the tool records the number you stated, for the date you gave, and a
+  call with a date and no measurement writes nothing at all rather than creating an empty
+  entry that Hevy cannot delete.
+
+- 29be242: Bodyweight-relative analytics. `get-bodyweight-trend` reports how your weight has moved
+  over a range — total change, percentage, and rate per week — and `get-progress` accepts
+  `relativeToBodyweight`, which attaches the weight you were carrying at each session and
+  the e1RM as a multiple of it. `deload-check` now consults the weight trend too: strength
+  that stalls while weight is dropping is a cut behaving normally, not fatigue, and reading
+  it as fatigue is how a good cut gets deloaded for no reason.
+
+  Weigh-ins are sparse by nature, so nothing is invented from them. A session is matched to
+  the nearest weigh-in within a fortnight, looking forward as well as back, because someone
+  who weighs in monthly has sessions no earlier weigh-in covers. Sessions with nothing in
+  range come back with no bodyweight rather than an interpolated one, and the answer says
+  how many of them there were. A range holding a single weigh-in has no trend: one weight is
+  not a rate, and reporting zero would be a claim nobody made.
+
+  `relativeToBodyweight` is opt-in rather than always on because measurements paginate ten
+  to a page, and someone who weighs in daily would otherwise pay a second full walk of the
+  API on every progress question that never mentioned their weight.
+
 ## 0.3.0
 
 ### Minor Changes
