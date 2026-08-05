@@ -167,7 +167,7 @@ ChatGPT only accepts remote servers over public HTTPS — there is no way to poi
 Worth knowing before you try:
 
 - **Developer mode is not on every plan.** Which plans get it, and whether an admin has to enable it first under Settings → Permissions & Roles → Connected Data, is OpenAI's call and has changed more than once. If you can't find the toggle, that's the reason — nothing here will fix it.
-- **The four write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine`, `update-routine`, `create-routine-folder` and `log-body-measurement` are declared as writes on purpose, so you get the prompt; the fourteen read tools don't.
+- **The four write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine`, `update-routine`, `create-routine-folder` and `log-body-measurement` are declared as writes on purpose, so you get the prompt; the fifteen read tools don't.
 - **Deep Research mode won't see it.** ChatGPT's Deep Research only calls connector tools named `search` and `fetch`; this server exposes training-analytics tools instead. Use it in normal chat with Developer Mode on.
 
 ### Claude Code
