@@ -1,6 +1,6 @@
 # hevy-coach-mcp
 
-An MCP server for [Hevy](https://www.hevyapp.com/) (the workout tracking app). It fetches your workouts, routines and exercise templates live from Hevy — no local cache or database — then does the analytics math (e1RM, PRs, volume, consistency, period comparisons) so your MCP client can reason over real numbers instead of guessing. It can also create and edit routines and their folders; your workout history is read-only.
+An MCP server for [Hevy](https://www.hevyapp.com/) (the workout tracking app). It fetches your workouts, routines and exercise templates live from Hevy — no local cache or database — then does the analytics math (e1RM, PRs, volume, consistency, period comparisons) so your MCP client can reason over real numbers instead of guessing. It writes back what you ask it to — routines, folders, a bodyweight — and never touches your workout history.
 
 Requires **Hevy PRO** and a Hevy API key (Hevy app → Settings → API).
 
@@ -39,7 +39,7 @@ Run `health-check` any time to confirm the connection. Every other tool fetches 
 
 ## Tools
 
-Thirteen read tools, all marked `readOnlyHint`:
+Fourteen read tools, all marked `readOnlyHint`:
 
 - `health-check` — connection status
 - `get-workouts`, `get-workout` — list/inspect workouts
@@ -50,12 +50,14 @@ Thirteen read tools, all marked `readOnlyHint`:
 - `get-volume-report` — effective sets and tonnage per muscle group per week
 - `get-consistency` — training frequency, streak, longest gap
 - `compare-periods` — volume/workout-count diff between two date ranges
+- `get-body-measurements` — logged bodyweight and measurements, newest first
 
-Three write tools, declared as writes so your client asks first:
+Four write tools, declared as writes so your client asks first:
 
 - `create-routine` — build a new routine from exercise names, optionally into a folder named rather than numbered
 - `update-routine` — edit an existing routine; passing an exercise list replaces the old one outright (`destructiveHint`)
 - `create-routine-folder` — add a folder; a title that already exists is never created twice
+- `log-body-measurement` — record a bodyweight or measurement for a date you give it; re-logging a date keeps whatever else was stored that day
 
 ## Resources
 
@@ -69,7 +71,7 @@ Three write tools, declared as writes so your client asks first:
 
 Nothing about your account is stored — every tool call fetches fresh from Hevy's API using your own key, and nothing about your account is sent anywhere else.
 
-Three tools write to Hevy: `create-routine`, `update-routine` and `create-routine-folder`, all declared as writes so your client asks before running them. Nothing writes to your workout history, and Hevy's API has no delete endpoint, so nothing can be removed. Note that a Hevy API key has no scopes — it grants full account access no matter what this server chooses to do with it.
+Four tools write to Hevy: `create-routine`, `update-routine`, `create-routine-folder` and `log-body-measurement`, all declared as writes so your client asks before running them. **Nothing writes to your workout history** — that is the line, and it does not move: a logged workout is what every number here is computed from, so it can only be changed by you, in the app. Hevy's API has no delete endpoint, so nothing this server creates can be removed from here either. Note that a Hevy API key has no scopes — it grants full account access no matter what this server chooses to do with it.
 
 ## Contributing
 

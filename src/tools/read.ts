@@ -1,6 +1,12 @@
 import { toDomainWorkout } from "../hevy/adapter.js";
 import type { HevyClient } from "../hevy/client.js";
-import { fetchAllExerciseTemplates, fetchAllRoutineFolders, fetchAllRoutines, fetchAllWorkouts } from "../hevy/fetchAll.js";
+import {
+  fetchAllBodyMeasurements,
+  fetchAllExerciseTemplates,
+  fetchAllRoutineFolders,
+  fetchAllRoutines,
+  fetchAllWorkouts,
+} from "../hevy/fetchAll.js";
 import type { DomainExerciseTemplate, DomainRoutine, DomainRoutineFolder, DomainWorkout } from "../domain/types.js";
 
 export interface ReadDeps {
@@ -45,6 +51,28 @@ export async function getWorkout(deps: ReadDeps, input: { id: string }): Promise
   } catch {
     return null;
   }
+}
+
+export interface GetBodyMeasurementsInput {
+  from?: string | undefined;
+  to?: string | undefined;
+  limit?: number | undefined;
+}
+
+/**
+ * Newest first, and dates compared as strings: Hevy stores a plain YYYY-MM-DD with no
+ * time or zone, and that format sorts and ranges correctly on its own. Parsing it into a
+ * Date would invent a midnight somewhere and could shift an entry a day either way.
+ */
+export async function getBodyMeasurements(deps: ReadDeps, input: GetBodyMeasurementsInput = {}) {
+  const limit = input.limit ?? 30;
+  const all = await fetchAllBodyMeasurements(deps.client);
+  const measurements = all
+    .filter((entry) => (!input.from || entry.date >= input.from) && (!input.to || entry.date <= input.to))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, limit);
+
+  return { measurements, totalLogged: all.length };
 }
 
 function summarizeRoutine(routine: DomainRoutine) {

@@ -1,6 +1,6 @@
 # Connect your Hevy training log to Claude
 
-`hevy-coach-mcp` is an [MCP](https://modelcontextprotocol.io/) server that gives an AI assistant read access to your [Hevy](https://www.hevyapp.com/) training history — and, more usefully, does the analytics math on top of it. It can also write routines. It can never write workouts: your training log is read-only, always.
+`hevy-coach-mcp` is an [MCP](https://modelcontextprotocol.io/) server that gives an AI assistant read access to your [Hevy](https://www.hevyapp.com/) training history — and, more usefully, does the analytics math on top of it. It also writes back the things you tell it: routines, the folders they live in, a bodyweight. **It can never write a workout.** Your training log is the one thing it only ever reads, always.
 
 Without it, asking an assistant "did I get stronger on bench this mesocycle?" gets you a guess. With it, the assistant calls a tool that computes your estimated 1RM trend from every set you actually logged, and answers with numbers.
 
@@ -167,7 +167,7 @@ ChatGPT only accepts remote servers over public HTTPS — there is no way to poi
 Worth knowing before you try:
 
 - **Developer mode is not on every plan.** Which plans get it, and whether an admin has to enable it first under Settings → Permissions & Roles → Connected Data, is OpenAI's call and has changed more than once. If you can't find the toggle, that's the reason — nothing here will fix it.
-- **The three write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine`, `update-routine` and `create-routine-folder` are declared as writes on purpose, so you get the prompt; the thirteen read tools don't.
+- **The four write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine`, `update-routine`, `create-routine-folder` and `log-body-measurement` are declared as writes on purpose, so you get the prompt; the fourteen read tools don't.
 - **Deep Research mode won't see it.** ChatGPT's Deep Research only calls connector tools named `search` and `fetch`; this server exposes training-analytics tools instead. Use it in normal chat with Developer Mode on.
 
 ### Claude Code
@@ -317,6 +317,8 @@ A `500` on step 1 means the configuration is wrong. The server logs which of the
 - "Compare my volume this mesocycle to the previous one."
 - "I'm training Push A today — what weights should I aim for?"
 - "Audit my program. Is anything in my routines never actually getting trained?"
+- "Log today's weigh-in: 73.4 kg."
+- "My bench has stalled for a month — has my bodyweight moved in the same period?"
 
 There are also four prompts (`weekly-review`, `program-audit`, `deload-check`, `prepare-session`) that walk the assistant through the right sequence of tool calls for these questions.
 
@@ -327,6 +329,7 @@ There are also four prompts (`weekly-review`, `program-audit`, `deload-check`, `
 - `get-workouts`, `get-workout` — list and inspect workouts
 - `list-routines`, `get-routine` — list and inspect routines
 - `list-routine-folders` — the folders you organise routines into
+- `get-body-measurements` — bodyweight and measurements you've logged, newest first
 - `search-exercises`, `get-exercise-history` — resolve an exercise by name, see everything you've logged for it
 
 **Analytics**
@@ -336,22 +339,35 @@ There are also four prompts (`weekly-review`, `program-audit`, `deload-check`, `
 - `get-consistency` — training frequency, current streak, longest gap
 - `compare-periods` — volume and workout-count deltas between two date ranges
 
-**Writing** — the only three tools that change anything, all declared as writes so your client asks first
+**Writing** — the only four tools that change anything, all declared as writes so your client asks first
 - `create-routine` — build a new routine from exercise names, optionally straight into one of your folders
 - `update-routine` — edit an existing routine; passing an exercise list replaces the old one outright
 - `create-routine-folder` — add a folder to organise routines into. A title you already have is never created a second time, because Hevy can't delete the duplicate and the name would be ambiguous from then on
+- `log-body-measurement` — record a bodyweight or a measurement for a date you state. Log a date twice and the metrics you gave are updated while everything else stored that day is kept — Hevy's own endpoint would have wiped it
 
 You can name exercises and folders the way you actually say them ("incline bench", "RDL", "Cut Season"). If a name is ambiguous the server returns the candidates and asks rather than picking one for you — a wrong guess here would silently corrupt every number downstream, or file a routine somewhere Hevy's API can't move it back from.
 
+## Where this is going
+
+Everything above is what the connector does today; this section is direction, not a promise, and nothing here is built yet. It is here so you can see what the thing is trying to become before you decide to connect it.
+
+- **Analytics that know your bodyweight.** Strength relative to what you weigh, and volume read against a cut or a bulk instead of in isolation. Now that measurements are readable, this is the next thing.
+- **Richer history per exercise.** Hevy has a dedicated endpoint for one exercise's full history; using it directly would make progression questions faster and more exact than reconstructing them from every workout.
+- **More of what you already track in Hevy**, where it earns its place — the test being that you state the value and can see and correct it in the app.
+
+What will not happen, at any point: writing workouts. Not behind a setting, not for corrections, not "just this once". Every number here is computed from your logged sets, and that only works if nothing but you can put them there.
+
 ## Limitations
 
-- **Routines can be written; your training log cannot.** `create-routine`, `update-routine` and `create-routine-folder` write to Hevy. Nothing else does: no workout is ever logged, edited or deleted, so the history your analytics are computed from can only be changed by you, in the app. Hevy's API has no delete endpoint at all, which cuts both ways — a routine or folder created by mistake is not destructive, but you have to remove it by hand.
+- **Your training log is the line, and it does not move.** Four tools write to Hevy — routines, folders, body measurements — and no workout is ever logged, edited or deleted by any of them. That is deliberate and permanent: every number this connector gives you is computed from your logged sets, so a workout invented by an assistant wouldn't just dirty the record, it would move the trends you make decisions from, and you'd have no way to spot it. Your history changes only when you change it, in the app.
+- **Nothing it creates can be deleted from here.** Hevy's API has no delete endpoint at all. A routine, folder or measurement created by mistake isn't destructive — nothing was overwritten — but you have to remove it by hand in the app.
+- **It writes what you say, not what it infers.** The measurement tool records a number you stated and a date you gave; it is not allowed to estimate your weight from anything. If an assistant offers to "log roughly where you probably are", that's the assistant improvising, not the tool.
 - **`update-routine` replaces, it does not merge.** Hevy only offers a whole-routine PUT. The server rebuilds the payload from what Hevy currently holds so an unrelated change can't flatten your rest timers or rep ranges, but if you pass a new exercise list it replaces the old one entirely. There is no undo.
 - **Routine notes can be set but not preserved.** Hevy returns per-exercise notes on read but not routine-level ones, so an update that doesn't pass `notes` cannot carry over what was there.
 - **Hevy PRO required.** The API is a PRO feature. There is no way around this.
 - **Estimated 1RM is estimated.** e1RM is computed with standard formulas (Epley/Brzycki) from your logged sets. It's a good trend line and a bad prediction of what you'd actually hit on the day.
 - **Analytics over a long history takes a moment.** With no cache, a question that scans your whole training history re-fetches it, page by page, each time. On a multi-year account expect a few seconds.
-- **Only what Hevy exposes.** Body measurements, RPE and notes are surfaced only where Hevy's API provides them.
+- **Only what Hevy exposes.** RPE and notes are surfaced only where Hevy's API provides them, and body measurements are only as complete as what you've logged — most accounts have very few entries, or none.
 - **No cross-question memory.** Two tool calls in the same conversation each fetch fresh. That's the cost of storing nothing.
 
 ## Privacy and revocation

@@ -1,6 +1,12 @@
-import { toDomainExerciseTemplate, toDomainRoutine, toDomainRoutineFolder, toDomainWorkout } from "./adapter.js";
+import { toDomainBodyMeasurement, toDomainExerciseTemplate, toDomainRoutine, toDomainRoutineFolder, toDomainWorkout } from "./adapter.js";
 import type { HevyClient } from "./client.js";
-import type { DomainExerciseTemplate, DomainRoutine, DomainRoutineFolder, DomainWorkout } from "../domain/types.js";
+import type {
+  DomainBodyMeasurement,
+  DomainExerciseTemplate,
+  DomainRoutine,
+  DomainRoutineFolder,
+  DomainWorkout,
+} from "../domain/types.js";
 
 const PAGE_SIZE = 10;
 
@@ -48,6 +54,19 @@ export async function fetchAllRoutineFolders(client: HevyClient): Promise<Domain
     page += 1;
   } while (page <= pageCount);
   return folders;
+}
+
+export async function fetchAllBodyMeasurements(client: HevyClient): Promise<DomainBodyMeasurement[]> {
+  const measurements: DomainBodyMeasurement[] = [];
+  let page = 1;
+  let pageCount = 1;
+  do {
+    const result = await client.getBodyMeasurements({ page, pageSize: PAGE_SIZE });
+    measurements.push(...result.body_measurements.map(toDomainBodyMeasurement));
+    pageCount = result.page_count;
+    page += 1;
+  } while (page <= pageCount);
+  return measurements;
 }
 
 export async function fetchAllExerciseTemplates(client: HevyClient): Promise<DomainExerciseTemplate[]> {

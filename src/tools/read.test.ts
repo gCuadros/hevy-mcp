@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { buildTestClient, exerciseTemplateDto, routineFolderDto, workoutDto } from "../hevy/testFixtures.js";
-import { getExerciseHistory, getWorkouts, listRoutineFolders, resolveExercise, resolveRoutineFolder, searchExercises } from "./read.js";
+import { bodyMeasurementDto, buildTestClient, exerciseTemplateDto, routineFolderDto, workoutDto } from "../hevy/testFixtures.js";
+import {
+  getBodyMeasurements,
+  getExerciseHistory,
+  getWorkouts,
+  listRoutineFolders,
+  resolveExercise,
+  resolveRoutineFolder,
+  searchExercises,
+} from "./read.js";
 
 function testDeps() {
   const client = buildTestClient({
@@ -73,5 +81,31 @@ describe("read tools", () => {
 
     const result = await resolveRoutineFolder({ client }, "Cut");
     expect(result).toMatchObject({ status: "resolved", folder: { id: 11 } });
+  });
+  it("getBodyMeasurements returns entries newest first and drops the metrics Hevy omitted", async () => {
+    const client = buildTestClient({
+      bodyMeasurements: [
+        bodyMeasurementDto("2026-03-01", { weight_kg: 73.5 }),
+        bodyMeasurementDto("2026-08-04", { weight_kg: 74.2, fat_percent: 18.1 }),
+      ],
+    });
+
+    expect(await getBodyMeasurements({ client })).toEqual({
+      totalLogged: 2,
+      measurements: [{ date: "2026-08-04", weightKg: 74.2, fatPercent: 18.1 }, { date: "2026-03-01", weightKg: 73.5 }],
+    });
+  });
+
+  it("getBodyMeasurements filters on the date range inclusively, without parsing dates into a timezone", async () => {
+    const client = buildTestClient({
+      bodyMeasurements: [
+        bodyMeasurementDto("2026-03-01", { weight_kg: 73.5 }),
+        bodyMeasurementDto("2026-08-04", { weight_kg: 74.2 }),
+      ],
+    });
+
+    const result = await getBodyMeasurements({ client }, { from: "2026-08-04", to: "2026-08-04" });
+    expect(result.measurements.map((entry) => entry.date)).toEqual(["2026-08-04"]);
+    expect(result.totalLogged).toBe(2);
   });
 });

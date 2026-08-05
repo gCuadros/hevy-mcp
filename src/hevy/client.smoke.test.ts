@@ -31,6 +31,17 @@ describe.skipIf(!apiKey)("HevyClient (real API)", () => {
     expect(page.exercise_templates.length).toBeGreaterThan(0);
   });
 
+  // Read-only on purpose. Nothing here creates or updates a measurement: the API has no
+  // delete, so a smoke test that wrote would leave a permanent entry in a real account.
+  it("fetches body measurements matching the schema", async () => {
+    const page = await client.getBodyMeasurements({ page: 1, pageSize: 5 });
+    expect(Array.isArray(page.body_measurements)).toBe(true);
+  });
+
+  it("answers null for a date with no measurement instead of throwing", async () => {
+    expect(await client.getBodyMeasurementByDate("1970-01-01")).toBeNull();
+  });
+
   it("fetches workout events matching the schema", async () => {
     const page = await client.getWorkoutEvents({ since: "2020-01-01T00:00:00Z", page: 1, pageSize: 5 });
     expect(page.events.length).toBeGreaterThan(0);

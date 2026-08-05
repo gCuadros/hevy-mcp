@@ -46,6 +46,22 @@ Hevy's published documentation. Do not "simplify" a schema to match the docs.
 - **`PUT /v1/routines/{id}` replaces the routine wholesale.** Anything missing from the
   body is erased. Updates must round-trip every stored field, which is what
   `toWritePayload` in `src/tools/write.ts` exists to do.
+- **Body measurements omit every field that was never filled in**, rather than sending it
+  as null. A real entry is `{ id, date, weight_kg, created_at }` and nothing else — and
+  neither `id` nor `created_at` appears in the OpenAPI document at all. `toDomainBodyMeasurement`
+  drops absent and null metrics alike, so a metric that is present is always a real
+  measurement and a zero survives.
+- **The two body-measurement writes answer `200` with an empty body.** `request()` returns
+  `undefined` for an empty response rather than letting `json()` throw on a write that
+  succeeded; callers that need the stored record read it back.
+- **`POST /v1/body_measurements` returns 409 when the date already has an entry, and
+  `PUT /v1/body_measurements/{date}` nulls every field the payload omits.** Together those
+  make a naive "log my weight" wipe the body-fat percentage stored the same day, the
+  second time it runs. `logBodyMeasurement` reads the entry first and merges over it.
+- **The docs give POST and PUT different field lists for the same record** — only PUT
+  declares `hips`. Both are sent the same shape here, since they are plainly one record.
+  Whether a create silently drops `hips` is unverified: it would need a real write, and a
+  measurement cannot be deleted.
 - The OpenAPI document is only reachable by parsing
   `https://api.hevyapp.com/docs/swagger-ui-init.js`; the `.json` URLs serve the Swagger UI
   HTML shell instead.

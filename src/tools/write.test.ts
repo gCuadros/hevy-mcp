@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HevyClient } from "../hevy/client.js";
 import {
+  bodyMeasurementDto,
   buildWriteTestClient,
   exerciseTemplateDto,
   routineDto,
@@ -8,7 +9,7 @@ import {
   routineFolderDto,
   routineSetDto,
 } from "../hevy/testFixtures.js";
-import { createRoutine, createRoutineFolder, updateRoutine } from "./write.js";
+import { createRoutine, createRoutineFolder, logBodyMeasurement, updateRoutine } from "./write.js";
 
 const templates = [
   exerciseTemplateDto("trxrow", "TRX Row"),
@@ -164,6 +165,65 @@ describe("create-routine-folder", () => {
 
     expect(result.status).toBe("written");
     expect(writes[0]?.body.routine_folder).toEqual({ title: "Deload Week" });
+  });
+});
+
+describe("log-body-measurement", () => {
+  it("creates an entry for a date that has none", async () => {
+    const { client, writes } = buildWriteTestClient({ bodyMeasurements: [] });
+
+    const result = await logBodyMeasurement({ client }, { date: "2026-08-04", weightKg: 73.5 });
+
+    expect(result).toMatchObject({ status: "created", date: "2026-08-04", measurement: { date: "2026-08-04", weightKg: 73.5 } });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ method: "POST", path: "/v1/body_measurements", body: { measurement: { date: "2026-08-04" } } });
+  });
+
+  it("keeps the metrics it was not given, which a bare PUT would erase", async () => {
+    const { client, writes } = buildWriteTestClient({
+      bodyMeasurements: [bodyMeasurementDto("2026-08-04", { weight_kg: 73.5, fat_percent: 18.2, waist: 80 })],
+    });
+
+    const result = await logBodyMeasurement({ client }, { date: "2026-08-04", weightKg: 74.1 });
+
+    expect(result).toMatchObject({
+      status: "updated",
+      measurement: { weightKg: 74.1, fatPercent: 18.2, waistCm: 80 },
+      kept: ["fatPercent", "waistCm"],
+    });
+    expect(writes[0]).toMatchObject({
+      method: "PUT",
+      path: "/v1/body_measurements/2026-08-04",
+      body: { measurement: { weight_kg: 74.1, fat_percent: 18.2, waist: 80 } },
+    });
+  });
+
+  it("updates rather than letting Hevy reject the second entry for a date with 409", async () => {
+    const { client, writes } = buildWriteTestClient({ bodyMeasurements: [bodyMeasurementDto("2026-08-04", { weight_kg: 73.5 })] });
+
+    const result = await logBodyMeasurement({ client }, { date: "2026-08-04", weightKg: 73.9 });
+
+    expect(result.status).toBe("updated");
+    expect(writes.every((write) => write.method === "PUT")).toBe(true);
+  });
+
+  it("writes nothing when given a date and no measurement", async () => {
+    const { client, writes } = buildWriteTestClient({ bodyMeasurements: [] });
+
+    const result = await logBodyMeasurement({ client }, { date: "2026-08-04" });
+
+    expect(result).toEqual({ status: "empty", date: "2026-08-04" });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("leaves other dates alone", async () => {
+    const { client } = buildWriteTestClient({
+      bodyMeasurements: [bodyMeasurementDto("2026-08-01", { weight_kg: 73.0 }), bodyMeasurementDto("2026-08-04", { weight_kg: 73.5 })],
+    });
+
+    await logBodyMeasurement({ client }, { date: "2026-08-04", weightKg: 74.1 });
+
+    expect(await client.getBodyMeasurementByDate("2026-08-01")).toMatchObject({ weight_kg: 73.0 });
   });
 });
 
