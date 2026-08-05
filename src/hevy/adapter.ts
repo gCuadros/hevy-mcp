@@ -1,4 +1,5 @@
 import type {
+  BodyMeasurement,
   ExerciseTemplate,
   Routine,
   RoutineFolder,
@@ -7,6 +8,7 @@ import type {
   WorkoutExercise,
 } from "./schemas.js";
 import type {
+  DomainBodyMeasurement,
   DomainExercise,
   DomainExerciseTemplate,
   DomainRoutine,
@@ -123,6 +125,38 @@ export function toDomainRoutineFolder(dto: RoutineFolder): DomainRoutineFolder {
     updatedAt: parseDate(dto.updated_at, context),
     createdAt: parseDate(dto.created_at, context),
   };
+}
+
+/**
+ * Drops every metric Hevy left out or sent as null, so a `weightKg` that is present is
+ * always a real measurement. `id` and `created_at` are deliberately not carried across:
+ * nothing downstream addresses an entry by anything but its date.
+ */
+export function toDomainBodyMeasurement(dto: BodyMeasurement): DomainBodyMeasurement {
+  const measurement: DomainBodyMeasurement = { date: dto.date };
+  const metrics = {
+    weightKg: dto.weight_kg,
+    leanMassKg: dto.lean_mass_kg,
+    fatPercent: dto.fat_percent,
+    neckCm: dto.neck_cm,
+    shoulderCm: dto.shoulder_cm,
+    chestCm: dto.chest_cm,
+    leftBicepCm: dto.left_bicep_cm,
+    rightBicepCm: dto.right_bicep_cm,
+    leftForearmCm: dto.left_forearm_cm,
+    rightForearmCm: dto.right_forearm_cm,
+    abdomenCm: dto.abdomen,
+    waistCm: dto.waist,
+    hipsCm: dto.hips,
+    leftCalfCm: dto.left_calf,
+    rightCalfCm: dto.right_calf,
+  };
+
+  for (const [key, value] of Object.entries(metrics)) {
+    if (typeof value === "number") measurement[key as keyof typeof metrics] = value;
+  }
+
+  return measurement;
 }
 
 export function toDomainExerciseTemplate(dto: ExerciseTemplate): DomainExerciseTemplate {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AdapterError, toDomainWorkout } from "./adapter.js";
+import { AdapterError, toDomainBodyMeasurement, toDomainWorkout } from "./adapter.js";
 import type { Workout } from "./schemas.js";
 
 function baseWorkout(overrides: Partial<Workout> = {}): Workout {
@@ -68,5 +68,33 @@ describe("toDomainWorkout", () => {
     const workout = baseWorkout({ start_time: "not-a-date" });
 
     expect(() => toDomainWorkout(workout)).toThrow(AdapterError);
+  });
+});
+
+describe("toDomainBodyMeasurement", () => {
+  it("keeps only the metrics that are really there", () => {
+    // The shape a live account returns: no key at all for anything never filled in,
+    // plus an id and created_at the OpenAPI document does not mention.
+    const domain = toDomainBodyMeasurement({ id: 40027314, date: "2026-03-01", weight_kg: 73.5, created_at: "2026-03-01T15:11:13.347Z" });
+
+    expect(domain).toEqual({ date: "2026-03-01", weightKg: 73.5 });
+  });
+
+  it("drops nulls instead of carrying them through as measurements", () => {
+    const domain = toDomainBodyMeasurement({ date: "2026-03-01", weight_kg: 73.5, fat_percent: null, waist: null });
+
+    expect(domain).toEqual({ date: "2026-03-01", weightKg: 73.5 });
+  });
+
+  it("keeps a zero, which is a value and not an absence", () => {
+    const domain = toDomainBodyMeasurement({ date: "2026-03-01", fat_percent: 0 });
+
+    expect(domain).toEqual({ date: "2026-03-01", fatPercent: 0 });
+  });
+
+  it("maps the three fields Hevy names without a unit suffix", () => {
+    const domain = toDomainBodyMeasurement({ date: "2026-03-01", abdomen: 85, waist: 80, hips: 95 });
+
+    expect(domain).toEqual({ date: "2026-03-01", abdomenCm: 85, waistCm: 80, hipsCm: 95 });
   });
 });

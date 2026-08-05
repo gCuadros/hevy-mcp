@@ -1,4 +1,8 @@
 import {
+  bodyMeasurementSchema,
+  bodyMeasurementWriteSchema,
+  bodyMeasurementsPageSchema,
+  createBodyMeasurementBodySchema,
   createRoutineBodySchema,
   createRoutineFolderBodySchema,
   exerciseTemplatesPageSchema,
@@ -11,6 +15,10 @@ import {
   workoutSchema,
   workoutsCountSchema,
   workoutsPageSchema,
+  type BodyMeasurement,
+  type BodyMeasurementWrite,
+  type BodyMeasurementsPage,
+  type CreateBodyMeasurementBody,
   type CreateRoutineBody,
   type CreateRoutineFolderBody,
   type ExerciseTemplatesPage,
@@ -125,6 +133,38 @@ export class HevyClient {
     return routineFolderResponseSchema.parse(data);
   }
 
+  async getBodyMeasurements(params: { page?: number; pageSize?: number } = {}): Promise<BodyMeasurementsPage> {
+    const search = new URLSearchParams();
+    if (params.page) search.set("page", String(params.page));
+    if (params.pageSize) search.set("pageSize", String(params.pageSize));
+    const data = await this.request(`/body_measurements?${search.toString()}`);
+    return bodyMeasurementsPageSchema.parse(data);
+  }
+
+  /** Returns null for a date with no entry, because "nothing logged that day" is an answer, not an error. */
+  async getBodyMeasurementByDate(date: string): Promise<BodyMeasurement | null> {
+    try {
+      const data = await this.request(`/body_measurements/${encodeURIComponent(date)}`);
+      return bodyMeasurementSchema.parse(data);
+    } catch (error) {
+      if (error instanceof HevyApiError && error.status === 404) return null;
+      throw error;
+    }
+  }
+
+  /** 409 if the date already has an entry. The caller is expected to update instead. */
+  async createBodyMeasurement(body: CreateBodyMeasurementBody): Promise<void> {
+    await this.request("/body_measurements", { method: "POST", body: createBodyMeasurementBodySchema.parse(body) });
+  }
+
+  /** Overwrites the whole entry: every field left out of `body` is set to null. */
+  async updateBodyMeasurement(date: string, body: BodyMeasurementWrite): Promise<void> {
+    await this.request(`/body_measurements/${encodeURIComponent(date)}`, {
+      method: "PUT",
+      body: bodyMeasurementWriteSchema.parse(body),
+    });
+  }
+
   async getExerciseTemplates(params: { page?: number; pageSize?: number } = {}): Promise<ExerciseTemplatesPage> {
     const search = new URLSearchParams();
     if (params.page) search.set("page", String(params.page));
@@ -148,7 +188,11 @@ export class HevyClient {
     });
 
     if (response.ok) {
-      return response.json();
+      // The body-measurement writes answer 200 with an empty body, so json() would
+      // throw on a request that succeeded. Callers that need the stored record read
+      // it back instead.
+      const text = await response.text();
+      return text.length === 0 ? undefined : JSON.parse(text);
     }
 
     if (response.status === 401 || response.status === 403) {

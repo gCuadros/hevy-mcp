@@ -13,6 +13,7 @@ import {
 } from "./tools/analytics.js";
 import { runHealthCheck, type ToolDeps } from "./tools/health.js";
 import {
+  getBodyMeasurements,
   getExerciseHistory,
   getRoutine,
   getWorkout,
@@ -22,7 +23,7 @@ import {
   searchExercises,
   type ReadDeps,
 } from "./tools/read.js";
-import { createRoutine, createRoutineFolder, updateRoutine, type WriteDeps } from "./tools/write.js";
+import { createRoutine, createRoutineFolder, logBodyMeasurement, updateRoutine, type WriteDeps } from "./tools/write.js";
 import { VERSION } from "./version.js";
 
 type Deps = ToolDeps & ReadDeps & AnalyticsDeps & WriteDeps;
@@ -122,6 +123,25 @@ export function createServer(deps: Deps): McpServer {
     async () => {
       const result = await listRoutineFolders(deps);
       return formatToolResult(`Found ${result.folders.length} folder(s)`, result);
+    },
+  );
+
+  server.registerTool(
+    "get-body-measurements",
+    {
+      title: "Get body measurements",
+      description:
+        "Returns the user's logged bodyweight and body measurements, newest first. Use it when the question involves bodyweight — cutting or bulking, strength relative to bodyweight, whether a stall lines up with a weight change — or when the user asks about their measurements directly. Only metrics the user actually recorded come back; a missing field means it was never logged, not zero. This is separate from workouts: many accounts have few entries or none at all.",
+      inputSchema: {
+        from: z.string().optional().describe("Earliest date to include, YYYY-MM-DD"),
+        to: z.string().optional().describe("Latest date to include, YYYY-MM-DD"),
+        limit: z.number().int().positive().optional().describe("How many entries to return, newest first (default 30)"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (input) => {
+      const result = await getBodyMeasurements(deps, input);
+      return formatToolResult(`${result.measurements.length} entr(ies) of ${result.totalLogged} logged`, result);
     },
   );
 
@@ -337,6 +357,45 @@ export function createServer(deps: Deps): McpServer {
         return formatToolResult("Nothing was written — some exercises could not be resolved", result, true);
       }
       return formatToolResult(`Updated "${result.result.title}"`, result.result);
+    },
+  );
+
+  server.registerTool(
+    "log-body-measurement",
+    {
+      title: "Log body measurement",
+      description:
+        "Records bodyweight or body measurements for one date in Hevy. Use it only when the user gives you a measurement and asks for it to be saved — never infer one. Pass the date explicitly, in the user's own timezone, and pass only the metrics they actually stated. If that date already has an entry the given metrics are updated and everything else stored for that day is preserved; Hevy's API has no delete, so a wrong date has to be fixed in the app.",
+      inputSchema: {
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Date of the measurement, YYYY-MM-DD, in the user's timezone"),
+        weightKg: z.number().positive().optional().describe("Bodyweight in kilograms"),
+        leanMassKg: z.number().positive().optional(),
+        fatPercent: z.number().positive().optional().describe("Body fat percentage, e.g. 18.5"),
+        neckCm: z.number().positive().optional(),
+        shoulderCm: z.number().positive().optional(),
+        chestCm: z.number().positive().optional(),
+        leftBicepCm: z.number().positive().optional(),
+        rightBicepCm: z.number().positive().optional(),
+        leftForearmCm: z.number().positive().optional(),
+        rightForearmCm: z.number().positive().optional(),
+        abdomenCm: z.number().positive().optional(),
+        waistCm: z.number().positive().optional(),
+        hipsCm: z.number().positive().optional(),
+        leftCalfCm: z.number().positive().optional(),
+        rightCalfCm: z.number().positive().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async (input) => {
+      const result = await logBodyMeasurement(deps, input);
+      if (result.status === "empty") {
+        return formatToolResult("Nothing was written — no measurement was given, only a date", result, true);
+      }
+      if (result.status === "updated") {
+        const kept = result.kept.length > 0 ? `, keeping ${result.kept.join(", ")}` : "";
+        return formatToolResult(`Updated the entry for ${result.date}${kept}`, result);
+      }
+      return formatToolResult(`Logged measurements for ${result.date}`, result);
     },
   );
 

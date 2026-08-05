@@ -4,6 +4,18 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
+/** What the body-measurement writes actually return: a 200 with nothing in it. */
+function emptyResponse(status = 200): Response {
+  return new Response(null, { status });
+}
+
+/** Hevy stores no key for a metric that was never given, so neither does the fake. */
+function stripUndefined(body: Record<string, unknown>): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(body).filter((entry): entry is [string, number] => typeof entry[1] === "number"),
+  );
+}
+
 export function exerciseTemplateDto(id: string, title: string, primaryMuscleGroup = "chest") {
   return {
     id,
@@ -82,16 +94,25 @@ export function routineFolderDto(id: number, title: string, index = 0) {
 }
 
 /**
+ * Shaped like the real thing, which omits every metric that was never filled in rather
+ * than sending it as null — a live entry is `{ id, date, weight_kg, created_at }`.
+ */
+export function bodyMeasurementDto(date: string, metrics: Record<string, number> = {}) {
+  return { id: Number(date.replaceAll("-", "")), date, created_at: `${date}T08:00:00Z`, ...metrics };
+}
+
+/**
  * Builds a HevyClient whose fetchFn serves fixed pages for
  * /v1/workouts, /v1/routines, /v1/routine_folders, /v1/exercise_templates,
- * /v1/workouts/:id — everything paginated as a single page. Good enough for
- * tool-level tests that exercise the live-fetch path without hitting the real API.
+ * /v1/body_measurements, /v1/workouts/:id — everything paginated as a single page. Good
+ * enough for tool-level tests that exercise the live-fetch path without hitting the real API.
  */
-export function buildTestClient(fixtures: { workouts?: ReturnType<typeof workoutDto>[]; routines?: ReturnType<typeof routineDto>[]; routineFolders?: ReturnType<typeof routineFolderDto>[]; exerciseTemplates?: ReturnType<typeof exerciseTemplateDto>[] } = {}) {
+export function buildTestClient(fixtures: { workouts?: ReturnType<typeof workoutDto>[]; routines?: ReturnType<typeof routineDto>[]; routineFolders?: ReturnType<typeof routineFolderDto>[]; exerciseTemplates?: ReturnType<typeof exerciseTemplateDto>[]; bodyMeasurements?: ReturnType<typeof bodyMeasurementDto>[] } = {}) {
   const workouts = fixtures.workouts ?? [];
   const routines = fixtures.routines ?? [];
   const routineFolders = fixtures.routineFolders ?? [];
   const exerciseTemplates = fixtures.exerciseTemplates ?? [];
+  const bodyMeasurements = fixtures.bodyMeasurements ?? [];
 
   const fetchFn = async (url: string | URL) => {
     const parsed = new URL(url);
@@ -107,6 +128,7 @@ export function buildTestClient(fixtures: { workouts?: ReturnType<typeof workout
     if (path === "/v1/routines") return jsonResponse({ page: 1, page_count: 1, routines });
     if (path === "/v1/routine_folders") return jsonResponse({ page: 1, page_count: 1, routine_folders: routineFolders });
     if (path === "/v1/exercise_templates") return jsonResponse({ page: 1, page_count: 1, exercise_templates: exerciseTemplates });
+    if (path === "/v1/body_measurements") return jsonResponse({ page: 1, page_count: 1, body_measurements: bodyMeasurements });
 
     throw new Error(`buildTestClient: unhandled path ${path}`);
   };
@@ -121,13 +143,20 @@ interface RoutineWriteBody {
   exercises: unknown[];
 }
 
+type MeasurementWriteBody = Record<string, number | string | null>;
+
 export interface RecordedWrite {
   method: string;
   path: string;
   // A union rather than one loose shape: a test that reads `.routine` off a folder
   // write should not typecheck. The `?: undefined` arms are what let each key still
-  // be read directly off the union before narrowing.
-  body: { routine: RoutineWriteBody; routine_folder?: undefined } | { routine_folder: { title: string }; routine?: undefined };
+  // be read directly off the union before narrowing. Measurement payloads are flat on
+  // the wire — the recorder nests them under `measurement` so the union stays
+  // discriminable, which is the one place `body` is not literally what was sent.
+  body:
+    | { routine: RoutineWriteBody; routine_folder?: undefined; measurement?: undefined }
+    | { routine_folder: { title: string }; routine?: undefined; measurement?: undefined }
+    | { measurement: MeasurementWriteBody; routine?: undefined; routine_folder?: undefined };
 }
 
 /**
@@ -140,10 +169,12 @@ export function buildWriteTestClient(fixtures: {
   routines?: ReturnType<typeof routineDto>[];
   routineFolders?: ReturnType<typeof routineFolderDto>[];
   exerciseTemplates?: ReturnType<typeof exerciseTemplateDto>[];
+  bodyMeasurements?: ReturnType<typeof bodyMeasurementDto>[];
 }) {
   const routines = fixtures.routines ?? [];
   const routineFolders = fixtures.routineFolders ?? [];
   const exerciseTemplates = fixtures.exerciseTemplates ?? [];
+  const measurements = [...(fixtures.bodyMeasurements ?? [])];
   const writes: RecordedWrite[] = [];
   let nextFolderId = 900;
 
@@ -160,6 +191,36 @@ export function buildWriteTestClient(fixtures: {
       const routine = routines.find((candidate) => candidate.id === path.split("/").pop());
       if (!routine) return jsonResponse({ error: "not found" }, 404);
       return jsonResponse(routine);
+    }
+    if (method === "GET" && path.startsWith("/v1/body_measurements/")) {
+      const stored = measurements.find((candidate) => candidate.date === path.split("/").pop());
+      if (!stored) return jsonResponse({ error: "not found" }, 404);
+      return jsonResponse(stored);
+    }
+
+    // Both measurement writes answer 200 with no body at all, which is why the client
+    // has to tolerate an empty response. The store is mutated so a test can read back
+    // what Hevy would now hold, including the fields the write erased.
+    if (method === "POST" && path === "/v1/body_measurements") {
+      const body = JSON.parse(String(init?.body)) as MeasurementWriteBody & { date: string };
+      writes.push({ method, path, body: { measurement: body } });
+      if (measurements.some((candidate) => candidate.date === body.date)) {
+        return jsonResponse({ error: "A body measurement already exists for this date" }, 409);
+      }
+      measurements.push(bodyMeasurementDto(body.date, stripUndefined(body)));
+      return emptyResponse(200);
+    }
+    if (method === "PUT" && path.startsWith("/v1/body_measurements/")) {
+      const date = String(path.split("/").pop());
+      const body = JSON.parse(String(init?.body)) as MeasurementWriteBody;
+      writes.push({ method, path, body: { measurement: body } });
+      const index = measurements.findIndex((candidate) => candidate.date === date);
+      if (index === -1) return jsonResponse({ error: "not found" }, 404);
+      // Wholesale replacement, exactly as Hevy documents it: whatever the body leaves
+      // out is gone, which is the failure mode the round-trip in logBodyMeasurement exists
+      // to prevent, so the fake must reproduce it rather than merge.
+      measurements[index] = bodyMeasurementDto(date, stripUndefined(body));
+      return emptyResponse(200);
     }
 
     if (method === "POST" && path === "/v1/routine_folders") {

@@ -212,6 +212,67 @@ export const routineFolderResponseSchema = z.preprocess((value) => {
   return value;
 }, routineFolderSchema);
 
+/**
+ * Every metric is `.optional()` rather than `.nullable()` because the live API omits
+ * the fields that were never filled in — a real entry comes back as
+ * `{ id, date, weight_kg, created_at }` and nothing else, whatever the docs show.
+ * `id` and `created_at` are not in the OpenAPI document at all but are always sent.
+ */
+export const bodyMeasurementSchema = z.object({
+  id: z.number().int().optional(),
+  date: z.string(),
+  created_at: z.string().optional(),
+  weight_kg: z.number().nullish(),
+  lean_mass_kg: z.number().nullish(),
+  fat_percent: z.number().nullish(),
+  neck_cm: z.number().nullish(),
+  shoulder_cm: z.number().nullish(),
+  chest_cm: z.number().nullish(),
+  left_bicep_cm: z.number().nullish(),
+  right_bicep_cm: z.number().nullish(),
+  left_forearm_cm: z.number().nullish(),
+  right_forearm_cm: z.number().nullish(),
+  abdomen: z.number().nullish(),
+  waist: z.number().nullish(),
+  hips: z.number().nullish(),
+  left_calf: z.number().nullish(),
+  right_calf: z.number().nullish(),
+});
+
+export const bodyMeasurementsPageSchema = z.object({
+  page: z.number().int(),
+  page_count: z.number().int(),
+  body_measurements: z.array(bodyMeasurementSchema),
+});
+
+/**
+ * The write payload. Hevy's docs give POST and PUT different field lists — only PUT
+ * declares `hips` — but they are plainly the same record, so both are sent the same
+ * shape. If Hevy ignores `hips` on a create the value is lost silently, which is the
+ * one part of this that has not been verified against a real account.
+ */
+export const bodyMeasurementWriteSchema = z.object({
+  weight_kg: z.number().nullable().optional(),
+  lean_mass_kg: z.number().nullable().optional(),
+  fat_percent: z.number().nullable().optional(),
+  neck_cm: z.number().nullable().optional(),
+  shoulder_cm: z.number().nullable().optional(),
+  chest_cm: z.number().nullable().optional(),
+  left_bicep_cm: z.number().nullable().optional(),
+  right_bicep_cm: z.number().nullable().optional(),
+  left_forearm_cm: z.number().nullable().optional(),
+  right_forearm_cm: z.number().nullable().optional(),
+  abdomen: z.number().nullable().optional(),
+  waist: z.number().nullable().optional(),
+  hips: z.number().nullable().optional(),
+  left_calf: z.number().nullable().optional(),
+  right_calf: z.number().nullable().optional(),
+});
+
+export const createBodyMeasurementBodySchema = bodyMeasurementWriteSchema.extend({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+});
+
 export const exerciseTemplateSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -243,5 +304,9 @@ export type UpdateRoutineBody = z.infer<typeof updateRoutineBodySchema>;
 export type RoutineFolder = z.infer<typeof routineFolderSchema>;
 export type RoutineFoldersPage = z.infer<typeof routineFoldersPageSchema>;
 export type CreateRoutineFolderBody = z.infer<typeof createRoutineFolderBodySchema>;
+export type BodyMeasurement = z.infer<typeof bodyMeasurementSchema>;
+export type BodyMeasurementsPage = z.infer<typeof bodyMeasurementsPageSchema>;
+export type BodyMeasurementWrite = z.infer<typeof bodyMeasurementWriteSchema>;
+export type CreateBodyMeasurementBody = z.infer<typeof createBodyMeasurementBodySchema>;
 export type ExerciseTemplate = z.infer<typeof exerciseTemplateSchema>;
 export type ExerciseTemplatesPage = z.infer<typeof exerciseTemplatesPageSchema>;

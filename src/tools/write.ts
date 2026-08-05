@@ -1,7 +1,8 @@
+import { toDomainBodyMeasurement } from "../hevy/adapter.js";
 import type { HevyClient } from "../hevy/client.js";
 import { fetchAllRoutineFolders, fetchAllRoutines } from "../hevy/fetchAll.js";
-import type { Routine, RoutineWriteExercise, RoutineWriteSet } from "../hevy/schemas.js";
-import type { SetType } from "../domain/types.js";
+import type { BodyMeasurementWrite, Routine, RoutineWriteExercise, RoutineWriteSet } from "../hevy/schemas.js";
+import type { DomainBodyMeasurement, SetType } from "../domain/types.js";
 import { resolveExercise, resolveRoutineFolder, type ExerciseCandidate, type ReadDeps, type RoutineFolderCandidate } from "./read.js";
 
 export type WriteDeps = ReadDeps;
@@ -161,6 +162,85 @@ export async function createRoutineFolder(deps: WriteDeps, input: { title: strin
 
   const folder = await deps.client.createRoutineFolder({ routine_folder: { title } });
   return { status: "written", result: { id: folder.id, index: folder.index, title: folder.title } };
+}
+
+/** The metric names a caller may set, mapped to the wire names Hevy uses for them. */
+const MEASUREMENT_FIELDS = {
+  weightKg: "weight_kg",
+  leanMassKg: "lean_mass_kg",
+  fatPercent: "fat_percent",
+  neckCm: "neck_cm",
+  shoulderCm: "shoulder_cm",
+  chestCm: "chest_cm",
+  leftBicepCm: "left_bicep_cm",
+  rightBicepCm: "right_bicep_cm",
+  leftForearmCm: "left_forearm_cm",
+  rightForearmCm: "right_forearm_cm",
+  abdomenCm: "abdomen",
+  waistCm: "waist",
+  hipsCm: "hips",
+  leftCalfCm: "left_calf",
+  rightCalfCm: "right_calf",
+} as const satisfies Record<string, keyof BodyMeasurementWrite>;
+
+export type MeasurementField = keyof typeof MEASUREMENT_FIELDS;
+
+export type LogBodyMeasurementInput = { date: string } & { [K in MeasurementField]?: number | undefined };
+
+export type LogBodyMeasurementResult =
+  | { status: "created"; date: string; measurement: DomainBodyMeasurement }
+  | { status: "updated"; date: string; measurement: DomainBodyMeasurement; kept: MeasurementField[] }
+  | { status: "empty"; date: string };
+
+/**
+ * Upsert for one day's measurements, because Hevy splits it across two endpoints that
+ * both bite:
+ *
+ * - POST answers 409 when the date already has an entry, so a plain create fails the
+ *   second time the user weighs in on a day they already logged.
+ * - PUT overwrites the whole record: every field left out is set to null. Logging a
+ *   weight would silently wipe the body-fat percentage stored alongside it.
+ *
+ * So the stored entry is read first and the new values are merged over it, the same
+ * round-trip toWritePayload does for routines. Fields the caller did not mention are
+ * reported back in `kept`, so the answer can say what was preserved rather than leaving
+ * the user to trust it.
+ */
+export async function logBodyMeasurement(deps: WriteDeps, input: LogBodyMeasurementInput): Promise<LogBodyMeasurementResult> {
+  const provided = (Object.keys(MEASUREMENT_FIELDS) as MeasurementField[]).filter((field) => typeof input[field] === "number");
+  // A create with nothing but a date would leave an empty entry that cannot be deleted.
+  if (provided.length === 0) return { status: "empty", date: input.date };
+
+  const existing = await deps.client.getBodyMeasurementByDate(input.date);
+  const payload: BodyMeasurementWrite = {};
+  const kept: MeasurementField[] = [];
+
+  for (const field of Object.keys(MEASUREMENT_FIELDS) as MeasurementField[]) {
+    const wireField = MEASUREMENT_FIELDS[field];
+    const incoming = input[field];
+    if (typeof incoming === "number") {
+      payload[wireField] = incoming;
+      continue;
+    }
+    const stored = existing?.[wireField];
+    if (typeof stored === "number") {
+      payload[wireField] = stored;
+      kept.push(field);
+    }
+  }
+
+  if (existing) {
+    await deps.client.updateBodyMeasurement(input.date, payload);
+  } else {
+    await deps.client.createBodyMeasurement({ ...payload, date: input.date });
+  }
+
+  // Both writes answer with an empty body, so the stored entry is read back rather than
+  // echoing what was sent. It is also the only way to see what Hevy actually kept.
+  const stored = await deps.client.getBodyMeasurementByDate(input.date);
+  const measurement = stored ? toDomainBodyMeasurement(stored) : { date: input.date };
+
+  return existing ? { status: "updated", date: input.date, measurement, kept } : { status: "created", date: input.date, measurement };
 }
 
 export interface RoutineCandidate {

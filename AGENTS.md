@@ -104,18 +104,35 @@ histories. That is a trade-off, not a bug — do not "fix" it by adding a cache.
 This is also what makes the hosted server multi-tenant-safe by construction: there is no
 per-user state to isolate, because there is no state.
 
-### Reads and analytics, plus routine writes only
+### The line is workout history, not writes in general
 
-Thirteen read/analytics tools, plus exactly three writes: `create-routine`,
-`update-routine` and `create-routine-folder`. All three touch routines and how they are
-organised, and nothing else.
+Fourteen read/analytics tools and four writes: `create-routine`, `update-routine`,
+`create-routine-folder` and `log-body-measurement`.
 
-**Workout history is never written.** It is the raw material for every number this server
-produces, and a model's mistake there would silently move records and trends. There is no
-`create-workout`, no body measurements, no custom exercises — and adding them is not a
-casual change. Before you even consider it, read what `renderConnectPage`
-(`src/auth/oauth.ts`) and `docs/CONNECTOR.md` promise users: the guarantee that training
-history cannot be altered is written there, in public, and must stay true.
+**Workout history is never written.** That is the guarantee, and it is the only one. A
+logged workout is the raw material for every number this server produces: a set the model
+invents does not just dirty the record, it moves the e1RM curve, the PRs and the volume
+trend the user then makes decisions from, and they have no way to tell. There is no
+`create-workout` and there will not be one — not behind a flag, not "just for
+corrections".
+
+Everything else is fair game to write when it earns its place, and the surface is meant to
+grow. Routines, folders and body measurements are all things the user states and the
+server records; if a value is wrong the user can see it and fix it in the app, and no
+analytic silently inherits the mistake. The old framing — "routines are the only thing
+written" — was a description of what happened to exist, and it was read as a promise. Do
+not reintroduce it.
+
+What a new write must do before it lands:
+
+1. Never touch workout history, directly or as a side effect.
+2. Record only what the user actually stated. Inferring a value and writing it is the
+   failure mode this whole section exists to prevent.
+3. Resolve everything before sending anything, and survive Hevy having no DELETE — see
+   below.
+4. Update the public wording in the same branch: `renderConnectPage`
+   (`src/auth/oauth.ts`), `docs/CONNECTOR.md` and `README.md`. Those texts are the promise
+   users read before handing over a key, and a stale one is worse than no promise at all.
 
 ### Hevy's API has no DELETE
 
@@ -132,6 +149,11 @@ be regressed:
 2. **Failed writes are never retried.** A 5xx on a POST/PUT might be a write that
    actually landed. Retrying could produce a duplicate routine that cannot be deleted.
    Only 429 is retried on writes, because it is rejected before doing anything.
+3. **An update reads before it writes.** Hevy replaces wholesale: `PUT /v1/routines/{id}`
+   erases anything missing from the body, and `PUT /v1/body_measurements/{date}` nulls
+   every field the payload leaves out. Both round-trip the stored record first
+   (`toWritePayload` and `logBodyMeasurement` in `src/tools/write.ts`), so setting one
+   value cannot quietly wipe the rest of the entry.
 
 ### Ambiguity is never resolved by guessing
 
