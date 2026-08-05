@@ -20,6 +20,13 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    # Compromised versions of keyv, flat-cache and friends lived for only a few
+    # hours before npm pulled them — everyone who got hit installed inside that
+    # window. A cooldown makes that window miss us entirely: nothing gets a pull
+    # request until it has survived its first days on the registry.
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
     groups:
       # Majors stay out of both groups, so they arrive as their own pull request.
       # Dependabot still opens them — being excluded from a group means ungrouped,

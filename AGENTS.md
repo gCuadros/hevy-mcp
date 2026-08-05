@@ -294,8 +294,16 @@ See `.env.example` for every environment variable and what happens when it is mi
   release` publishes and has no such collision.
 - **Publishing to npm is the `Release` workflow**, run by hand from the Actions tab
   against `main`. It refuses to run while any changeset is still pending, so the order
-  is: branch → `yarn run version` → PR → merge → run the workflow. Publishing from a
-  laptop still works, but only CI can attach a provenance attestation.
+  is: branch → `yarn run version` → PR → merge → run the workflow.
+- **There is no `NPM_TOKEN` and there should never be one.** The workflow publishes
+  with npm trusted publishing (OIDC): npm verifies the `release.yml` workflow in this
+  repo and attaches provenance automatically. The trusted publisher is configured on
+  npmjs.com (package settings → Trusted Publisher → GitHub Actions → `release.yml`),
+  and that page only exists once the package does — so the *first* publish is the one
+  exception: `yarn release` from the maintainer's laptop, then configure the trusted
+  publisher, then set Publishing access to "Require 2FA and disallow tokens". Stolen
+  long-lived npm tokens are how the recent registry worms spread; this setup leaves
+  nothing to steal.
 - The versioning half is deliberately *not* automated. A "Version Packages" pull request
   opened by `GITHUB_TOKEN` does not trigger workflows, so the `verify` check that the
   `main` ruleset requires would never report and that pull request could never be

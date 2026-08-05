@@ -13,7 +13,7 @@ on:
 
 permissions:
   contents: write # pushes the version tag
-  id-token: write # npm provenance
+  id-token: write # OIDC token for npm trusted publishing (also gives provenance)
 
 jobs:
   publish:
@@ -25,10 +25,20 @@ jobs:
         with:
           node-version: 22
           cache: yarn
-          # Without this npm never reads NODE_AUTH_TOKEN and the publish 401s.
+          # Also what makes npm write its .npmrc for the registry. Trusted
+          # publishing does not use it for a token — there is no token — but the
+          # OIDC exchange only happens against the configured registry.
           registry-url: https://registry.npmjs.org
 
-      - run: yarn install --frozen-lockfile
+      # Node 22 ships npm 10.x; trusted publishing needs >= 11.5.1. changesets
+      # shells out to npm for the publish, so upgrading npm here is what
+      # enables OIDC for `yarn release`.
+      - run: npm install -g npm@latest
+
+      # --ignore-scripts: lifecycle scripts of freshly installed packages are
+      # the supply-chain vector (see the 2026 keyv/flat-cache compromises).
+      # Nothing in this dependency tree needs them; tests and build stay green.
+      - run: yarn install --frozen-lockfile --ignore-scripts
 
       # A pending changeset means main was never versioned, so package.json still
       # holds the previous number and publishing now would ship the new code under
@@ -46,13 +56,15 @@ jobs:
 
       # `prepublishOnly` builds, so dist/ is made by the publish itself and cannot
       # drift from what is being shipped.
+      #
+      # No NODE_AUTH_TOKEN anywhere on purpose: the package authenticates with
+      # npm trusted publishing (OIDC) — the `id-token: write` permission above
+      # lets npm verify this exact workflow in this exact repo, and provenance
+      # comes attached automatically. A stolen long-lived NPM_TOKEN is how the
+      # recent npm worms republished other people's packages; there is no token
+      # here to steal. The trusted publisher is configured on npmjs.com (package
+      # settings → Trusted Publisher → GitHub Actions → this file on main).
       - run: yarn release
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # Attaches a signed attestation tying the tarball to this commit and
-          # this workflow. Only obtainable from CI — a local `yarn release` cannot
-          # produce one.
-          NPM_CONFIG_PROVENANCE: "true"
 
       # `changeset publish` tags the release locally; nothing pushes it for us.
       - run: git push --follow-tags

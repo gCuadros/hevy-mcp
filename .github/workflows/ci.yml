@@ -30,7 +30,10 @@ jobs:
           node-version: 22
           cache: yarn
 
-      - run: yarn install --frozen-lockfile
+      # --ignore-scripts (both jobs): dependency lifecycle scripts are the
+      # supply-chain vector; nothing in this tree needs them — typecheck, tests,
+      # build and pack all stay green on a fresh install without them.
+      - run: yarn install --frozen-lockfile --ignore-scripts
 
       # The same three commands AGENTS.md tells agents to run before calling a
       # change done. Keep them in sync: if this job grows a step, document it there.
@@ -85,6 +88,6 @@ jobs:
           node-version: 22
           cache: yarn
 
-      - run: yarn install --frozen-lockfile
+      - run: yarn install --frozen-lockfile --ignore-scripts
 
       - run: yarn changeset status --since=origin/main
