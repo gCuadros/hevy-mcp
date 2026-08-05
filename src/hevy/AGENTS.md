@@ -62,6 +62,20 @@ Hevy's published documentation. Do not "simplify" a schema to match the docs.
   declares `hips`. Both are sent the same shape here, since they are plainly one record.
   Whether a create silently drops `hips` is unverified: it would need a real write, and a
   measurement cannot be deleted.
+- **`GET /v1/exercise_history/{id}` does not paginate.** It returns every set ever logged
+  for that exercise in one response, and `page`/`pageSize` are accepted and silently
+  ignored (verified: identical 42 rows with and without them). That is why there is no
+  `fetchAll` counterpart, and why `getProgress`, `getRecords` and `getExerciseHistory` use
+  it instead of walking every workout page — one request against thirteen on a 128-workout
+  account.
+- **It answers `200` with an empty array for a template ID that does not exist**, not 404,
+  so "never logged" and "no such exercise" are indistinguishable from this endpoint alone.
+  Resolve the name against the templates first; `resolveExercise` already does.
+- **Its rows carry no set index, and it calls the set type `set_type`** where the workouts
+  endpoint calls the same value `type`. `toDomainExerciseSessions` produces `order` from
+  the row position rather than reusing the name `index`, and it does not collapse duplicate
+  rows the way `cleanSets` does for workouts — without an index, three identical rows are
+  three sets of the same thing, not one set sent three times.
 - The OpenAPI document is only reachable by parsing
   `https://api.hevyapp.com/docs/swagger-ui-init.js`; the `.json` URLs serve the Swagger UI
   HTML shell instead.

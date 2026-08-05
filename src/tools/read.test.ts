@@ -60,6 +60,36 @@ describe("read tools", () => {
     }
   });
 
+  it("getExerciseHistory reports the workout it came from and the position of each set", async () => {
+    const result = await getExerciseHistory(testDeps(), { exercise: "bench1" });
+    if (result.status !== "resolved") throw new Error("expected resolved");
+
+    expect(result.totalSessions).toBe(2);
+    expect(result.history[0]).toEqual({
+      workoutId: "w2",
+      workoutTitle: "Workout w2",
+      date: "2026-01-08T00:00:00.000Z",
+      sets: [{ order: 0, type: "normal", weightKg: 85, reps: 5, rpe: null }],
+    });
+  });
+
+  it("getExerciseHistory keeps the most recent sessions when the limit bites, and says how many there were", async () => {
+    const result = await getExerciseHistory(testDeps(), { exercise: "bench1", limit: 1 });
+    if (result.status !== "resolved") throw new Error("expected resolved");
+
+    expect(result.history).toHaveLength(1);
+    expect(result.history[0]?.workoutId).toBe("w2");
+    expect(result.totalSessions).toBe(2);
+  });
+
+  it("getExerciseHistory returns an empty history for an exercise never logged", async () => {
+    const result = await getExerciseHistory(testDeps(), { exercise: "bench2" });
+    if (result.status !== "resolved") throw new Error("expected resolved");
+
+    expect(result.history).toEqual([]);
+    expect(result.totalSessions).toBe(0);
+  });
+
   it("getExerciseHistory passes through ambiguity instead of guessing", async () => {
     const result = await getExerciseHistory(testDeps(), { exercise: "bench" });
     expect(result.status).toBe("ambiguous");

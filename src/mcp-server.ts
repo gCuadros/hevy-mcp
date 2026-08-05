@@ -187,7 +187,7 @@ export function createServer(deps: Deps): McpServer {
     {
       title: "Get exercise history",
       description:
-        "Returns every set logged for a given exercise across all workouts, most recent first. Accepts a human name or a template ID; if the name is ambiguous, returns candidates instead of guessing — call search-exercises or re-call with the exact ID.",
+        "Returns every set logged for a given exercise across all workouts, most recent first, each with the workout it belongs to and its set type (warmup, normal, failure, dropset). Cheap: it asks Hevy for this one exercise rather than scanning the whole training log. Use it to see what was actually done rather than a summary — prefer get-progress for the e1RM trend and get-records for PRs. totalSessions reports how many sessions exist regardless of the limit. Accepts a human name or a template ID; if the name is ambiguous, returns candidates instead of guessing — call search-exercises or re-call with the exact ID.",
       inputSchema: {
         exercise: z.string().describe("Exercise name or template ID"),
         limit: z.number().int().positive().optional().describe("Max history entries, most recent first (default 20)"),
@@ -202,7 +202,7 @@ export function createServer(deps: Deps): McpServer {
       if (result.status === "ambiguous") {
         return formatToolResult(`"${exercise}" is ambiguous (${result.candidates.length} matches) — retry with an exact ID`, result, true);
       }
-      return formatToolResult(`${result.history.length} session(s) for ${result.template.title}`, result);
+      return formatToolResult(`${result.history.length} of ${result.totalSessions} session(s) for ${result.template.title}`, result);
     },
   );
 

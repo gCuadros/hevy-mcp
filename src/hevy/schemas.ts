@@ -289,6 +289,31 @@ export const exerciseTemplatesPageSchema = z.object({
   exercise_templates: z.array(exerciseTemplateSchema),
 });
 
+/**
+ * One logged set of one exercise, as /v1/exercise_history/{id} returns it: flat, one row
+ * per set, with the workout it belongs to repeated on every row. Note `set_type` rather
+ * than the `type` the workouts endpoint uses for the same value, and note that there is
+ * no set index here at all — see `toDomainExerciseSessions` for what that costs.
+ */
+export const exerciseHistoryRowSchema = z.object({
+  workout_id: z.string(),
+  workout_title: z.string(),
+  workout_start_time: z.string(),
+  workout_end_time: z.string(),
+  exercise_template_id: z.string(),
+  weight_kg: z.number().nullable(),
+  reps: z.number().int().nullable(),
+  distance_meters: z.number().nullable(),
+  duration_seconds: z.number().nullable(),
+  rpe: z.number().nullable(),
+  custom_metric: z.number().nullable(),
+  set_type: z.enum(["warmup", "normal", "failure", "dropset"]),
+});
+
+export const exerciseHistoryResponseSchema = z.object({
+  exercise_history: z.array(exerciseHistoryRowSchema),
+});
+
 export type Set = z.infer<typeof setSchema>;
 export type WorkoutExercise = z.infer<typeof workoutExerciseSchema>;
 export type Workout = z.infer<typeof workoutSchema>;
@@ -310,3 +335,4 @@ export type BodyMeasurementWrite = z.infer<typeof bodyMeasurementWriteSchema>;
 export type CreateBodyMeasurementBody = z.infer<typeof createBodyMeasurementBodySchema>;
 export type ExerciseTemplate = z.infer<typeof exerciseTemplateSchema>;
 export type ExerciseTemplatesPage = z.infer<typeof exerciseTemplatesPageSchema>;
+export type ExerciseHistoryRow = z.infer<typeof exerciseHistoryRowSchema>;

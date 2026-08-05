@@ -13,7 +13,7 @@ import { buildMuscleGroupResolver } from "../engine/muscle-map.js";
 import { recordsByBracket, type RecordEntry, type RepBracket } from "../engine/records.js";
 import { weeklyVolumeByMuscleGroup, type WeeklyMuscleVolume } from "../engine/volume.js";
 import { fetchAllBodyMeasurements, fetchAllExerciseTemplates, fetchAllWorkouts } from "../hevy/fetchAll.js";
-import { resolveExercise, type ExerciseCandidate, type ReadDeps } from "./read.js";
+import { fetchExerciseSessions, resolveExercise, type ExerciseCandidate, type ReadDeps } from "./read.js";
 
 export type AnalyticsDeps = ReadDeps;
 
@@ -58,23 +58,20 @@ export async function getProgress(
   const formula = input.formula ?? "epley";
   const progress: ProgressPoint[] = [];
 
-  const workouts = await fetchAllWorkouts(deps.client);
-  for (const workout of workouts) {
-    for (const exercise of workout.exercises) {
-      if (exercise.exerciseTemplateId !== resolved.template.id) continue;
-      const best = bestSetE1rm(exercise.sets, formula);
-      if (!best) continue;
-      progress.push({
-        workoutId: workout.id,
-        date: workout.startTime.toISOString(),
-        weightKg: best.set.weightKg as number,
-        reps: best.set.reps as number,
-        e1rm: Math.round(best.e1rm * 10) / 10,
-      });
-    }
+  // Already oldest first, and already only this exercise: the history endpoint does the
+  // filtering Hevy is better placed to do than a full walk of every workout page.
+  for (const session of await fetchExerciseSessions(deps, resolved.template.id)) {
+    const best = bestSetE1rm(session.sets, formula);
+    if (!best) continue;
+    progress.push({
+      workoutId: session.workoutId,
+      date: session.startTime.toISOString(),
+      weightKg: best.set.weightKg as number,
+      reps: best.set.reps as number,
+      e1rm: Math.round(best.e1rm * 10) / 10,
+    });
   }
 
-  progress.sort((a, b) => a.date.localeCompare(b.date));
   const result: ProgressReport = {
     status: "resolved",
     template: { id: resolved.template.id, title: resolved.template.title, primaryMuscleGroup: resolved.template.primaryMuscleGroup },
@@ -130,12 +127,11 @@ export async function getRecords(deps: AnalyticsDeps, input: { exercise: string 
   const resolved = await resolveExercise(deps, input.exercise);
   if (resolved.status !== "resolved") return resolved;
 
-  const workouts = await fetchAllWorkouts(deps.client);
-  const sessions = workouts.flatMap((workout) =>
-    workout.exercises
-      .filter((exercise) => exercise.exerciseTemplateId === resolved.template.id)
-      .map((exercise) => ({ date: workout.startTime.toISOString(), workoutId: workout.id, sets: exercise.sets })),
-  );
+  const sessions = (await fetchExerciseSessions(deps, resolved.template.id)).map((session) => ({
+    date: session.startTime.toISOString(),
+    workoutId: session.workoutId,
+    sets: session.sets,
+  }));
 
   return {
     status: "resolved",

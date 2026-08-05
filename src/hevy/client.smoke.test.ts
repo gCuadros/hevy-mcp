@@ -42,6 +42,20 @@ describe.skipIf(!apiKey)("HevyClient (real API)", () => {
     expect(await client.getBodyMeasurementByDate("1970-01-01")).toBeNull();
   });
 
+  it("fetches an exercise's history matching the schema", async () => {
+    const templates = await client.getExerciseTemplates({ page: 1, pageSize: 1 });
+    const template = templates.exercise_templates[0];
+    if (!template) throw new Error("no exercise templates on this account");
+
+    // Any template will do: the schema is what is under test, and an exercise the account
+    // has never logged returns an empty array through the same parse.
+    expect(Array.isArray(await client.getExerciseHistory(template.id))).toBe(true);
+  });
+
+  it("answers 200 with no rows for a template that does not exist, rather than 404", async () => {
+    expect(await client.getExerciseHistory("NOTATEMPLATE")).toEqual([]);
+  });
+
   it("fetches workout events matching the schema", async () => {
     const page = await client.getWorkoutEvents({ since: "2020-01-01T00:00:00Z", page: 1, pageSize: 5 });
     expect(page.events.length).toBeGreaterThan(0);

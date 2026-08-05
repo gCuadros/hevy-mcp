@@ -60,6 +60,36 @@ export function workoutDto(id: string, startTime: string, exerciseTemplateId: st
   };
 }
 
+/**
+ * Flattens the workout fixtures into the rows /v1/exercise_history/{id} returns, so a test
+ * that sets up workouts gets a history consistent with them for free. That mirrors reality
+ * — both endpoints report the same logged sets — and it keeps a test from accidentally
+ * describing an account where the two disagree.
+ */
+function exerciseHistoryRows(workouts: ReturnType<typeof workoutDto>[], templateId: string) {
+  return workouts.flatMap((workout) =>
+    workout.exercises
+      .filter((exercise) => exercise.exercise_template_id === templateId)
+      .flatMap((exercise) =>
+        exercise.sets.map((set) => ({
+          workout_id: workout.id,
+          workout_title: workout.title,
+          workout_start_time: workout.start_time,
+          workout_end_time: workout.end_time,
+          exercise_template_id: exercise.exercise_template_id,
+          weight_kg: set.weight_kg,
+          reps: set.reps,
+          distance_meters: set.distance_meters,
+          duration_seconds: set.duration_seconds,
+          rpe: set.rpe,
+          custom_metric: set.custom_metric,
+          // The history endpoint names this set_type, where the workouts endpoint says type.
+          set_type: set.type,
+        })),
+      ),
+  );
+}
+
 export function routineSetDto(overrides: Record<string, unknown> = {}) {
   return {
     index: 0,
@@ -129,6 +159,12 @@ export function buildTestClient(fixtures: { workouts?: ReturnType<typeof workout
     if (path === "/v1/routine_folders") return jsonResponse({ page: 1, page_count: 1, routine_folders: routineFolders });
     if (path === "/v1/exercise_templates") return jsonResponse({ page: 1, page_count: 1, exercise_templates: exerciseTemplates });
     if (path === "/v1/body_measurements") return jsonResponse({ page: 1, page_count: 1, body_measurements: bodyMeasurements });
+    if (path.startsWith("/v1/exercise_history/")) {
+      // 200 with an empty array for a template that does not exist, exactly like the real
+      // endpoint — no 404. A test that relies on a 404 here would be testing a fiction.
+      const templateId = decodeURIComponent(path.split("/").pop() ?? "");
+      return jsonResponse({ exercise_history: exerciseHistoryRows(workouts, templateId) });
+    }
 
     throw new Error(`buildTestClient: unhandled path ${path}`);
   };
