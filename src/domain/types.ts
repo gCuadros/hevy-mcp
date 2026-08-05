@@ -99,6 +99,8 @@ export interface DomainBodyMeasurement {
   abdomenCm?: number | undefined;
   waistCm?: number | undefined;
   hipsCm?: number | undefined;
+  leftThighCm?: number | undefined;
+  rightThighCm?: number | undefined;
   leftCalfCm?: number | undefined;
   rightCalfCm?: number | undefined;
 }

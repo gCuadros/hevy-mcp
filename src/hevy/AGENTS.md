@@ -58,10 +58,17 @@ Hevy's published documentation. Do not "simplify" a schema to match the docs.
   `PUT /v1/body_measurements/{date}` nulls every field the payload omits.** Together those
   make a naive "log my weight" wipe the body-fat percentage stored the same day, the
   second time it runs. `logBodyMeasurement` reads the entry first and merges over it.
-- **The docs give POST and PUT different field lists for the same record** — only PUT
-  declares `hips`. Both are sent the same shape here, since they are plainly one record.
-  Whether a create silently drops `hips` is unverified: it would need a real write, and a
-  measurement cannot be deleted.
+- **POST and PUT take the same record.** `POST /v1/body_measurements` declares
+  `BodyMeasurement` and `PUT /v1/body_measurements/{date}` declares `PutBodyMeasurement`,
+  and the two field lists are identical apart from `date`. An earlier note here claimed
+  only PUT declared `hips`; that was wrong, and believing it is what let `left_thigh` and
+  `right_thigh` go missing from `bodyMeasurementSchema` entirely.
+- **A field Hevy declares but this schema omits is destroyed, not ignored.**
+  `logBodyMeasurement` merges the caller's values over the *parsed* stored entry, zod
+  strips anything undeclared, and PUT nulls whatever the payload leaves out — so an
+  omission silently wipes that measurement the next time the user logs a weight, with no
+  delete and no undo to recover it. Check every field list against the live OpenAPI
+  (`https://api.hevyapp.com/docs/swagger-ui-init.js`) before touching these schemas.
 - **`GET /v1/exercise_history/{id}` does not paginate.** It returns every set ever logged
   for that exercise in one response, and `page`/`pageSize` are accepted and silently
   ignored (verified: identical 42 rows with and without them). That is why there is no

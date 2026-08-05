@@ -29,6 +29,9 @@ import { VERSION } from "./version.js";
 
 type Deps = ToolDeps & ReadDeps & AnalyticsDeps & WriteDeps;
 
+/** Hevy stores measurement dates as a plain YYYY-MM-DD, and every range over them is a string comparison. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 function ambiguousOrNotFound(subject: string, result: { status: "ambiguous" | "not-found"; candidates?: unknown }) {
   if (result.status === "not-found") return formatToolResult(`No exercise found matching "${subject}"`, result, true);
   return formatToolResult(`"${subject}" is ambiguous — retry with an exact ID`, result, true);
@@ -134,8 +137,10 @@ export function createServer(deps: Deps): McpServer {
       description:
         "Returns the user's logged bodyweight and body measurements, newest first. Use it when the question involves bodyweight — cutting or bulking, strength relative to bodyweight, whether a stall lines up with a weight change — or when the user asks about their measurements directly. Only metrics the user actually recorded come back; a missing field means it was never logged, not zero. This is separate from workouts: many accounts have few entries or none at all.",
       inputSchema: {
-        from: z.string().optional().describe("Earliest date to include, YYYY-MM-DD"),
-        to: z.string().optional().describe("Latest date to include, YYYY-MM-DD"),
+        // Enforced rather than described: these bounds are compared as strings, so
+        // "2026-8-4" or a full timestamp does not error, it silently matches nothing.
+        from: z.string().regex(ISO_DATE).optional().describe("Earliest date to include, YYYY-MM-DD"),
+        to: z.string().regex(ISO_DATE).optional().describe("Latest date to include, YYYY-MM-DD"),
         limit: z.number().int().positive().optional().describe("How many entries to return, newest first (default 30)"),
       },
       annotations: { readOnlyHint: true },
@@ -153,8 +158,8 @@ export function createServer(deps: Deps): McpServer {
       description:
         "Returns how the user's bodyweight has moved over a date range: total change in kg and percent, the weekly rate, the lightest and heaviest weigh-in, and every weigh-in in the range. Use it for 'is my cut on track', 'how fast am I gaining', or before judging whether a strength stall is really a weight change. Needs at least two weigh-ins in the range; below that the trend is null and only the weigh-ins come back, because one weight is not a trend. Prefer get-progress with relativeToBodyweight when the question is about a specific lift rather than the weight itself.",
       inputSchema: {
-        from: z.string().optional().describe("Earliest date to include, YYYY-MM-DD"),
-        to: z.string().optional().describe("Latest date to include, YYYY-MM-DD"),
+        from: z.string().regex(ISO_DATE).optional().describe("Earliest date to include, YYYY-MM-DD"),
+        to: z.string().regex(ISO_DATE).optional().describe("Latest date to include, YYYY-MM-DD"),
       },
       annotations: { readOnlyHint: true },
     },
@@ -390,7 +395,7 @@ export function createServer(deps: Deps): McpServer {
       description:
         "Records bodyweight or body measurements for one date in Hevy. Use it only when the user gives you a measurement and asks for it to be saved — never infer one. Pass the date explicitly, in the user's own timezone, and pass only the metrics they actually stated. If that date already has an entry the given metrics are updated and everything else stored for that day is preserved; Hevy's API has no delete, so a wrong date has to be fixed in the app.",
       inputSchema: {
-        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Date of the measurement, YYYY-MM-DD, in the user's timezone"),
+        date: z.string().regex(ISO_DATE).describe("Date of the measurement, YYYY-MM-DD, in the user's timezone"),
         weightKg: z.number().positive().optional().describe("Bodyweight in kilograms"),
         leanMassKg: z.number().positive().optional(),
         fatPercent: z.number().positive().optional().describe("Body fat percentage, e.g. 18.5"),
@@ -404,6 +409,8 @@ export function createServer(deps: Deps): McpServer {
         abdomenCm: z.number().positive().optional(),
         waistCm: z.number().positive().optional(),
         hipsCm: z.number().positive().optional(),
+        leftThighCm: z.number().positive().optional(),
+        rightThighCm: z.number().positive().optional(),
         leftCalfCm: z.number().positive().optional(),
         rightCalfCm: z.number().positive().optional(),
       },

@@ -52,6 +52,18 @@ describe("bodyweightAt", () => {
   it("returns null with no weigh-ins at all", () => {
     expect(bodyweightAt([], "2026-02-03")).toBeNull();
   });
+
+  it("skips a date it cannot parse instead of letting the window check fail open", () => {
+    // The distance comes back NaN, and every comparison against NaN is false — so without
+    // an explicit guard this weigh-in passes the window test and wins the "nearest" test,
+    // attaching an arbitrarily distant weight to the session.
+    expect(bodyweightAt([{ date: "not-a-date", weightKg: 60 }], "2026-02-03")).toBeNull();
+    expect(bodyweightAt([{ date: "not-a-date", weightKg: 60 }, ...series], "2026-02-03")).toEqual({
+      weightKg: 78,
+      measuredOn: "2026-02-01",
+      daysAway: 2,
+    });
+  });
 });
 
 describe("relativeToBodyweight", () => {

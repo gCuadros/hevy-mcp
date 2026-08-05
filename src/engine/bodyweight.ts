@@ -74,7 +74,10 @@ export function bodyweightAt(
 
   for (const point of series) {
     const daysAway = Math.abs(daysBetween(point.date, date));
-    if (daysAway > windowDays) continue;
+    // A date this cannot parse gives NaN, and every comparison below it is false — so
+    // without this the window check fails *open* and an arbitrarily distant weigh-in gets
+    // attached to the session. Skipping is the only safe reading of "distance unknown".
+    if (!Number.isFinite(daysAway) || daysAway > windowDays) continue;
     // Strictly closer only, so the first match at a given distance wins — and the series
     // is sorted oldest first, which is what makes ties resolve to the earlier weigh-in.
     if (best && daysAway >= best.daysAway) continue;
