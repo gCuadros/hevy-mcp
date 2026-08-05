@@ -101,6 +101,13 @@ solves storage and duplicating it buys nothing. The accepted cost is repeated pa
 across independent tool calls in one conversation, and slower analytics over long
 histories. That is a trade-off, not a bug — do not "fix" it by adding a cache.
 
+The way to make a tool faster is to ask Hevy a narrower question, not to remember the
+answer. Everything about a single exercise — `get-exercise-history`, `get-progress`,
+`get-records` — goes through `GET /v1/exercise_history/{id}`, which returns that
+exercise's whole history unpaginated in one request, instead of walking every page of
+every workout and filtering client-side. Same numbers, verified identical against a real
+account; 2.7× faster on 128 workouts, and the gap widens with the log.
+
 This is also what makes the hosted server multi-tenant-safe by construction: there is no
 per-user state to isolate, because there is no state.
 

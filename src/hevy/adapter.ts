@@ -1,5 +1,6 @@
 import type {
   BodyMeasurement,
+  ExerciseHistoryRow,
   ExerciseTemplate,
   Routine,
   RoutineFolder,
@@ -10,7 +11,9 @@ import type {
 import type {
   DomainBodyMeasurement,
   DomainExercise,
+  DomainExerciseSession,
   DomainExerciseTemplate,
+  DomainHistorySet,
   DomainRoutine,
   DomainRoutineFolder,
   DomainSet,
@@ -86,6 +89,56 @@ export function toDomainWorkout(dto: Workout): DomainWorkout {
     updatedAt: parseDate(dto.updated_at, context),
     createdAt: parseDate(dto.created_at, context),
     exercises: dto.exercises.map((exercise) => toDomainExercise(exercise, context)),
+  };
+}
+
+/**
+ * Rebuilds sessions out of the flat rows /v1/exercise_history/{id} returns, oldest first.
+ * Callers that display history reverse it; the analytics read it in this order.
+ *
+ * Two things the workouts endpoint gives and this one does not. There is no set index, so
+ * `order` is the position the rows arrived in — which is the logged order in practice, but
+ * it is derived, and it is named `order` rather than `index` so nothing downstream mistakes
+ * it for something Hevy asserted. And duplicate sets cannot be collapsed the way `cleanSets`
+ * does for workouts: without an index, three identical rows are indistinguishable from one
+ * set logged three times, and three sets of 70x6 is the far likelier reading. Empty rows are
+ * still dropped, on the same rule as everywhere else — absence beats a zero nobody lifted.
+ */
+export function toDomainExerciseSessions(rows: ExerciseHistoryRow[]): DomainExerciseSession[] {
+  const sessions = new Map<string, DomainExerciseSession>();
+
+  for (const row of rows) {
+    if (row.reps === null && row.weight_kg === null && row.distance_meters === null && row.duration_seconds === null) continue;
+
+    let session = sessions.get(row.workout_id);
+    if (!session) {
+      const context = `exercise history for workout ${row.workout_id}`;
+      session = {
+        workoutId: row.workout_id,
+        workoutTitle: row.workout_title,
+        startTime: parseDate(row.workout_start_time, context),
+        endTime: parseDate(row.workout_end_time, context),
+        sets: [],
+      };
+      sessions.set(row.workout_id, session);
+    }
+
+    session.sets.push(toDomainHistorySet(row, session.sets.length));
+  }
+
+  return [...sessions.values()].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+}
+
+function toDomainHistorySet(row: ExerciseHistoryRow, order: number): DomainHistorySet {
+  return {
+    order,
+    type: row.set_type,
+    weightKg: row.weight_kg,
+    reps: row.reps,
+    distanceMeters: row.distance_meters,
+    durationSeconds: row.duration_seconds,
+    rpe: row.rpe,
+    customMetric: row.custom_metric,
   };
 }
 

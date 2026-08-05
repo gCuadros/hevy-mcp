@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { AdapterError, toDomainBodyMeasurement, toDomainWorkout } from "./adapter.js";
-import type { Workout } from "./schemas.js";
+import { AdapterError, toDomainBodyMeasurement, toDomainExerciseSessions, toDomainWorkout } from "./adapter.js";
+import type { ExerciseHistoryRow, Workout } from "./schemas.js";
 
 function baseWorkout(overrides: Partial<Workout> = {}): Workout {
   return {
@@ -96,5 +96,80 @@ describe("toDomainBodyMeasurement", () => {
     const domain = toDomainBodyMeasurement({ date: "2026-03-01", abdomen: 85, waist: 80, hips: 95 });
 
     expect(domain).toEqual({ date: "2026-03-01", abdomenCm: 85, waistCm: 80, hipsCm: 95 });
+  });
+});
+
+function historyRow(overrides: Partial<ExerciseHistoryRow> = {}): ExerciseHistoryRow {
+  return {
+    workout_id: "w1",
+    workout_title: "Push day",
+    workout_start_time: "2026-01-01T10:00:00Z",
+    workout_end_time: "2026-01-01T11:00:00Z",
+    exercise_template_id: "ex1",
+    weight_kg: 70,
+    reps: 6,
+    distance_meters: null,
+    duration_seconds: null,
+    rpe: null,
+    custom_metric: null,
+    set_type: "normal",
+    ...overrides,
+  };
+}
+
+describe("toDomainExerciseSessions", () => {
+  it("groups the flat rows back into sessions, oldest first", () => {
+    const sessions = toDomainExerciseSessions([
+      historyRow({ workout_id: "w2", workout_start_time: "2026-02-01T10:00:00Z", workout_end_time: "2026-02-01T11:00:00Z", weight_kg: 75 }),
+      historyRow({ weight_kg: 70 }),
+      historyRow({ weight_kg: 72 }),
+    ]);
+
+    expect(sessions.map((session) => session.workoutId)).toEqual(["w1", "w2"]);
+    expect(sessions[0]?.sets.map((set) => set.weightKg)).toEqual([70, 72]);
+    expect(sessions[0]?.workoutTitle).toBe("Push day");
+    expect(sessions[1]?.startTime.toISOString()).toBe("2026-02-01T10:00:00.000Z");
+  });
+
+  it("numbers sets by the order the rows arrived in, since the endpoint sends no index", () => {
+    const sessions = toDomainExerciseSessions([historyRow({ reps: 15 }), historyRow({ reps: 6 }), historyRow({ reps: 5 })]);
+
+    expect(sessions[0]?.sets.map((set) => set.order)).toEqual([0, 1, 2]);
+  });
+
+  it("keeps identical rows, because three sets of the same thing is the likelier reading", () => {
+    const sessions = toDomainExerciseSessions([historyRow(), historyRow(), historyRow()]);
+
+    expect(sessions[0]?.sets).toHaveLength(3);
+  });
+
+  it("drops rows with nothing logged in them", () => {
+    const sessions = toDomainExerciseSessions([
+      historyRow(),
+      historyRow({ weight_kg: null, reps: null, distance_meters: null, duration_seconds: null }),
+    ]);
+
+    expect(sessions[0]?.sets).toHaveLength(1);
+  });
+
+  it("carries the cardio fields, which are all a cardio set has", () => {
+    const sessions = toDomainExerciseSessions([
+      historyRow({ weight_kg: null, reps: null, distance_meters: 5000, duration_seconds: 1500, set_type: "warmup" }),
+    ]);
+
+    expect(sessions[0]?.sets[0]).toEqual({
+      order: 0,
+      type: "warmup",
+      weightKg: null,
+      reps: null,
+      distanceMeters: 5000,
+      durationSeconds: 1500,
+      rpe: null,
+      customMetric: null,
+    });
+  });
+
+  it("returns nothing for an exercise with no history", () => {
+    expect(toDomainExerciseSessions([])).toEqual([]);
   });
 });

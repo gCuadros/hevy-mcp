@@ -167,7 +167,7 @@ ChatGPT only accepts remote servers over public HTTPS — there is no way to poi
 Worth knowing before you try:
 
 - **Developer mode is not on every plan.** Which plans get it, and whether an admin has to enable it first under Settings → Permissions & Roles → Connected Data, is OpenAI's call and has changed more than once. If you can't find the toggle, that's the reason — nothing here will fix it.
-- **The four write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine`, `update-routine`, `create-routine-folder` and `log-body-measurement` are declared as writes on purpose, so you get the prompt; the fourteen read tools don't.
+- **The four write tools will ask before they run.** ChatGPT treats any tool without `readOnlyHint` as a write action and requires confirmation. `create-routine`, `update-routine`, `create-routine-folder` and `log-body-measurement` are declared as writes on purpose, so you get the prompt; the fifteen read tools don't.
 - **Deep Research mode won't see it.** ChatGPT's Deep Research only calls connector tools named `search` and `fetch`; this server exposes training-analytics tools instead. Use it in normal chat with Developer Mode on.
 
 ### Claude Code
@@ -355,7 +355,6 @@ You can name exercises and folders the way you actually say them ("incline bench
 Everything above is what the connector does today; this section is direction, not a promise, and nothing here is built yet. It is here so you can see what the thing is trying to become before you decide to connect it.
 
 - **Volume read against a cut or a bulk** instead of in isolation. Strength relative to bodyweight already landed — `get-bodyweight-trend`, and `get-progress` against the weight you were carrying — but tonnage and set counts are still reported as if your weight never moved.
-- **Richer history per exercise.** Hevy has a dedicated endpoint for one exercise's full history; using it directly would make progression questions faster and more exact than reconstructing them from every workout.
 - **More of what you already track in Hevy**, where it earns its place — the test being that you state the value and can see and correct it in the app.
 
 What will not happen, at any point: writing workouts. Not behind a setting, not for corrections, not "just this once". Every number here is computed from your logged sets, and that only works if nothing but you can put them there.
@@ -370,7 +369,7 @@ What will not happen, at any point: writing workouts. Not behind a setting, not 
 - **Hevy PRO required.** The API is a PRO feature. There is no way around this.
 - **Bodyweight-relative numbers are only as good as your weigh-ins.** A session is matched to the nearest weigh-in within two weeks, in either direction; sessions with nothing nearby come back with no bodyweight rather than an interpolated one, and the answer says how many were covered. Two weigh-ins are the minimum for a trend. If you don't weigh yourself in Hevy, these tools have nothing to work with — `log-body-measurement` is one way to start.
 - **Estimated 1RM is estimated.** e1RM is computed with standard formulas (Epley/Brzycki) from your logged sets. It's a good trend line and a bad prediction of what you'd actually hit on the day.
-- **Analytics over a long history takes a moment.** With no cache, a question that scans your whole training history re-fetches it, page by page, each time. On a multi-year account expect a few seconds.
+- **Analytics over a long history takes a moment.** With no cache, a question that scans your whole training history re-fetches it, page by page, each time. On a multi-year account expect a few seconds. Questions about one exercise are the quick ones: those go straight to Hevy's per-exercise endpoint and come back in a single request.
 - **Only what Hevy exposes.** RPE and notes are surfaced only where Hevy's API provides them, and body measurements are only as complete as what you've logged — most accounts have very few entries, or none.
 - **No cross-question memory.** Two tool calls in the same conversation each fetch fresh. That's the cost of storing nothing.
 

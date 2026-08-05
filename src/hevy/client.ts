@@ -5,6 +5,7 @@ import {
   createBodyMeasurementBodySchema,
   createRoutineBodySchema,
   createRoutineFolderBodySchema,
+  exerciseHistoryResponseSchema,
   exerciseTemplatesPageSchema,
   routineFolderResponseSchema,
   routineFoldersPageSchema,
@@ -21,6 +22,7 @@ import {
   type CreateBodyMeasurementBody,
   type CreateRoutineBody,
   type CreateRoutineFolderBody,
+  type ExerciseHistoryRow,
   type ExerciseTemplatesPage,
   type Routine,
   type RoutineFolder,
@@ -171,6 +173,20 @@ export class HevyClient {
     if (params.pageSize) search.set("pageSize", String(params.pageSize));
     const data = await this.request(`/exercise_templates?${search.toString()}`);
     return exerciseTemplatesPageSchema.parse(data);
+  }
+
+  /**
+   * Every set ever logged for one exercise, in a single response: this endpoint does not
+   * paginate, and `page`/`pageSize` are accepted and ignored (verified against a real
+   * account). There is no fetchAll counterpart for the same reason.
+   *
+   * An unknown template ID answers 200 with an empty array rather than 404, so an empty
+   * result here means "nothing logged" *or* "no such exercise" and cannot tell them apart.
+   * Resolve the name against the templates first; `resolveExercise` already does.
+   */
+  async getExerciseHistory(templateId: string): Promise<ExerciseHistoryRow[]> {
+    const data = await this.request(`/exercise_history/${encodeURIComponent(templateId)}`);
+    return exerciseHistoryResponseSchema.parse(data).exercise_history;
   }
 
   private async request(path: string, init: { method?: string; body?: unknown } = {}, attempt = 0): Promise<unknown> {

@@ -10,6 +10,32 @@ export interface DomainSet {
   rpe: number | null;
 }
 
+/**
+ * A set as the exercise-history endpoint reports it. Deliberately not a `DomainSet`: that
+ * one carries Hevy's own `index`, and this endpoint sends none, so `order` is the row
+ * position and nothing more. Two different names for two different guarantees.
+ */
+export interface DomainHistorySet {
+  /** Position within the session, derived from the order the rows arrived in. Not an index Hevy reported. */
+  order: number;
+  type: SetType;
+  weightKg: number | null;
+  reps: number | null;
+  distanceMeters: number | null;
+  durationSeconds: number | null;
+  rpe: number | null;
+  customMetric: number | null;
+}
+
+/** Every set of one exercise in one workout, grouped back out of the flat history rows. */
+export interface DomainExerciseSession {
+  workoutId: string;
+  workoutTitle: string;
+  startTime: Date;
+  endTime: Date;
+  sets: DomainHistorySet[];
+}
+
 export interface DomainExercise {
   index: number;
   title: string;

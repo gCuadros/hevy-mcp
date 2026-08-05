@@ -1,4 +1,4 @@
-import { toDomainWorkout } from "../hevy/adapter.js";
+import { toDomainExerciseSessions, toDomainWorkout } from "../hevy/adapter.js";
 import type { HevyClient } from "../hevy/client.js";
 import {
   fetchAllBodyMeasurements,
@@ -7,7 +7,15 @@ import {
   fetchAllRoutines,
   fetchAllWorkouts,
 } from "../hevy/fetchAll.js";
-import type { DomainExerciseTemplate, DomainRoutine, DomainRoutineFolder, DomainWorkout } from "../domain/types.js";
+import type {
+  DomainExerciseSession,
+  DomainExerciseTemplate,
+  DomainHistorySet,
+  DomainRoutine,
+  DomainRoutineFolder,
+  DomainWorkout,
+  SetType,
+} from "../domain/types.js";
 
 export interface ReadDeps {
   client: HevyClient;
@@ -181,14 +189,48 @@ export async function resolveExercise(deps: ReadDeps, ref: string): Promise<Reso
   return { status: "not-found" };
 }
 
+/**
+ * Every session of one exercise, oldest first. One request to Hevy's dedicated endpoint
+ * instead of walking every page of every workout, which is the difference between one
+ * call and dozens on a multi-year account.
+ *
+ * The unresolvable ID is handled by the caller, not here: this endpoint answers 200 with
+ * an empty array for a template that does not exist, so it cannot distinguish that from
+ * an exercise the user has simply never logged.
+ */
+export async function fetchExerciseSessions(deps: ReadDeps, templateId: string): Promise<DomainExerciseSession[]> {
+  return toDomainExerciseSessions(await deps.client.getExerciseHistory(templateId));
+}
+
+export interface ExerciseHistorySet {
+  order: number;
+  type: SetType;
+  weightKg: number | null;
+  reps: number | null;
+  rpe: number | null;
+  distanceMeters?: number;
+  durationSeconds?: number;
+  customMetric?: number;
+}
+
 export interface ExerciseHistoryEntry {
   workoutId: string;
+  workoutTitle: string;
   date: string;
-  sets: { index: number; weightKg: number | null; reps: number | null; rpe: number | null }[];
+  sets: ExerciseHistorySet[];
+}
+
+/** Cardio fields are carried only when they hold something: three nulls on every set of every strength session is noise the model pays for. */
+function toHistorySet(set: DomainHistorySet): ExerciseHistorySet {
+  const out: ExerciseHistorySet = { order: set.order, type: set.type, weightKg: set.weightKg, reps: set.reps, rpe: set.rpe };
+  if (set.distanceMeters !== null) out.distanceMeters = set.distanceMeters;
+  if (set.durationSeconds !== null) out.durationSeconds = set.durationSeconds;
+  if (set.customMetric !== null) out.customMetric = set.customMetric;
+  return out;
 }
 
 export type GetExerciseHistoryResult =
-  | { status: "resolved"; template: ExerciseCandidate; history: ExerciseHistoryEntry[] }
+  | { status: "resolved"; template: ExerciseCandidate; history: ExerciseHistoryEntry[]; totalSessions: number }
   | { status: "ambiguous"; candidates: ExerciseCandidate[] }
   | { status: "not-found" };
 
@@ -200,19 +242,16 @@ export async function getExerciseHistory(
   if (resolved.status !== "resolved") return resolved;
 
   const limit = input.limit ?? 20;
-  const allWorkouts = await fetchAllWorkouts(deps.client);
-  const history = allWorkouts
-    .flatMap((workout) =>
-      workout.exercises
-        .filter((exercise) => exercise.exerciseTemplateId === resolved.template.id)
-        .map((exercise) => ({
-          workoutId: workout.id,
-          date: workout.startTime.toISOString(),
-          sets: exercise.sets.map((set) => ({ index: set.index, weightKg: set.weightKg, reps: set.reps, rpe: set.rpe })),
-        })),
-    )
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, limit);
+  const sessions = await fetchExerciseSessions(deps, resolved.template.id);
+  const history = sessions
+    .slice(-limit)
+    .reverse()
+    .map((session) => ({
+      workoutId: session.workoutId,
+      workoutTitle: session.workoutTitle,
+      date: session.startTime.toISOString(),
+      sets: session.sets.map(toHistorySet),
+    }));
 
-  return { status: "resolved", template: toCandidate(resolved.template), history };
+  return { status: "resolved", template: toCandidate(resolved.template), history, totalSessions: sessions.length };
 }
