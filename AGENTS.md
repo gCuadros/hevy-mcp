@@ -106,7 +106,7 @@ per-user state to isolate, because there is no state.
 
 ### The line is workout history, not writes in general
 
-Fourteen read/analytics tools and four writes: `create-routine`, `update-routine`,
+Fifteen read/analytics tools and four writes: `create-routine`, `update-routine`,
 `create-routine-folder` and `log-body-measurement`.
 
 **Workout history is never written.** That is the guarantee, and it is the only one. A

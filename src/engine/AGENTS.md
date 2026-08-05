@@ -39,6 +39,7 @@ expression, where it comes from, and where it breaks down.
 | `volume.ts` | Effective sets and tonnage per muscle group per week. |
 | `consistency.ts` | Training frequency, current streak, longest gap. |
 | `compare.ts` | Volume and workout-count deltas between two date ranges. |
+| `bodyweight.ts` | The weigh-in nearest a given day, loads as a multiple of bodyweight, and weight change over a range. |
 
 ## Judgement belongs to the model
 
@@ -49,3 +50,8 @@ where the user cannot see or argue with it.
 
 A set that cannot be scored — no weight, no reps, zero either — is excluded, not
 defaulted to zero. Zero is a claim about the training; absence is the truth.
+
+The same rule drives `bodyweight.ts`, where the data is sparse by nature: a session with
+no weigh-in within a fortnight comes back with no bodyweight at all, and a range holding
+one weigh-in has no trend. Interpolating between distant weigh-ins, or reporting a rate
+of zero from a single point, would invent numbers the user never stepped on a scale for.
