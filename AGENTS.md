@@ -309,6 +309,13 @@ See `.env.example` for every environment variable and what happens when it is mi
   `main` ruleset requires would never report and that pull request could never be
   merged. Changing this needs a PAT or a ruleset bypass, not just the changesets action.
 - Deployment to Vercel is done manually by the maintainer. Do not run `vercel` commands.
+- **GitHub account operations belong to the maintainer, full stop.** The `gh` CLI on
+  this machine is signed into two accounts — the maintainer's personal one and their
+  *corporate* one. Agents work locally (code, tests, docs) and stop there: never run
+  `gh auth` (switch, login, logout, refresh, setup-git), never read or use a token
+  (`gh auth token`, credential helpers), never push, and never create PRs, rulesets
+  or repo settings. Never act as the corporate account in particular — do not even
+  read with it. Hand the maintainer the exact command instead; they run it.
 
 ## Files that are not in this repo
 
