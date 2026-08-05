@@ -9,6 +9,7 @@ import {
   routineFolderDto,
   routineSetDto,
 } from "../hevy/testFixtures.js";
+import { bodyMeasurementWriteSchema } from "../hevy/schemas.js";
 import { createRoutine, createRoutineFolder, logBodyMeasurement, updateRoutine } from "./write.js";
 
 const templates = [
@@ -196,6 +197,34 @@ describe("log-body-measurement", () => {
       path: "/v1/body_measurements/2026-08-04",
       body: { measurement: { weight_kg: 74.1, fat_percent: 18.2, waist: 80 } },
     });
+  });
+
+  /**
+   * Enumerated from the schema rather than written out, so a field declared on the wire
+   * but missing from MEASUREMENT_FIELDS fails here instead of being nulled on a real
+   * account — the stored record is parsed before it is merged, and PUT wipes whatever the
+   * payload omits. It cannot catch a field missing from the schema *itself*, which is what
+   * happened to the thighs; `schemas.test.ts` pins that list against Hevy's own document.
+   */
+  it("preserves every field the wire schema declares, not just the ones a test remembered", async () => {
+    const wireFields = Object.keys(bodyMeasurementWriteSchema.shape);
+    const stored = Object.fromEntries(wireFields.map((field, i) => [field, 10 + i]));
+    const { client, writes } = buildWriteTestClient({ bodyMeasurements: [bodyMeasurementDto("2026-08-04", stored)] });
+
+    await logBodyMeasurement({ client }, { date: "2026-08-04", weightKg: 74.1 });
+
+    expect(writes[0]?.body).toEqual({ measurement: { ...stored, weight_kg: 74.1 } });
+  });
+
+  it("keeps thigh measurements, which Hevy declares and this server used to drop", async () => {
+    const { client, writes } = buildWriteTestClient({
+      bodyMeasurements: [bodyMeasurementDto("2026-08-04", { weight_kg: 73.5, left_thigh: 58.5, right_thigh: 59 })],
+    });
+
+    const result = await logBodyMeasurement({ client }, { date: "2026-08-04", weightKg: 74.1 });
+
+    expect(result).toMatchObject({ status: "updated", measurement: { leftThighCm: 58.5, rightThighCm: 59 } });
+    expect(writes[0]).toMatchObject({ body: { measurement: { left_thigh: 58.5, right_thigh: 59 } } });
   });
 
   it("updates rather than letting Hevy reject the second entry for a date with 409", async () => {

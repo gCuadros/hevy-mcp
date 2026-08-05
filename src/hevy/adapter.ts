@@ -201,6 +201,8 @@ export function toDomainBodyMeasurement(dto: BodyMeasurement): DomainBodyMeasure
     abdomenCm: dto.abdomen,
     waistCm: dto.waist,
     hipsCm: dto.hips,
+    leftThighCm: dto.left_thigh,
+    rightThighCm: dto.right_thigh,
     leftCalfCm: dto.left_calf,
     rightCalfCm: dto.right_calf,
   };

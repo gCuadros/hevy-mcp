@@ -92,10 +92,10 @@ describe("toDomainBodyMeasurement", () => {
     expect(domain).toEqual({ date: "2026-03-01", fatPercent: 0 });
   });
 
-  it("maps the three fields Hevy names without a unit suffix", () => {
-    const domain = toDomainBodyMeasurement({ date: "2026-03-01", abdomen: 85, waist: 80, hips: 95 });
+  it("maps the five fields Hevy names without a unit suffix", () => {
+    const domain = toDomainBodyMeasurement({ date: "2026-03-01", abdomen: 85, waist: 80, hips: 95, left_thigh: 58.5, right_thigh: 59 });
 
-    expect(domain).toEqual({ date: "2026-03-01", abdomenCm: 85, waistCm: 80, hipsCm: 95 });
+    expect(domain).toEqual({ date: "2026-03-01", abdomenCm: 85, waistCm: 80, hipsCm: 95, leftThighCm: 58.5, rightThighCm: 59 });
   });
 });
 

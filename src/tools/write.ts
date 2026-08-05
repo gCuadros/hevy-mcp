@@ -179,6 +179,8 @@ const MEASUREMENT_FIELDS = {
   abdomenCm: "abdomen",
   waistCm: "waist",
   hipsCm: "hips",
+  leftThighCm: "left_thigh",
+  rightThighCm: "right_thigh",
   leftCalfCm: "left_calf",
   rightCalfCm: "right_calf",
 } as const satisfies Record<string, keyof BodyMeasurementWrite>;

@@ -235,6 +235,8 @@ export const bodyMeasurementSchema = z.object({
   abdomen: z.number().nullish(),
   waist: z.number().nullish(),
   hips: z.number().nullish(),
+  left_thigh: z.number().nullish(),
+  right_thigh: z.number().nullish(),
   left_calf: z.number().nullish(),
   right_calf: z.number().nullish(),
 });
@@ -246,10 +248,14 @@ export const bodyMeasurementsPageSchema = z.object({
 });
 
 /**
- * The write payload. Hevy's docs give POST and PUT different field lists — only PUT
- * declares `hips` — but they are plainly the same record, so both are sent the same
- * shape. If Hevy ignores `hips` on a create the value is lost silently, which is the
- * one part of this that has not been verified against a real account.
+ * The write payload. POST takes `BodyMeasurement` and PUT takes `PutBodyMeasurement`, and
+ * the two declare identical field lists apart from `date`, so both are sent the same shape.
+ *
+ * **Every field Hevy declares must be listed here and in `bodyMeasurementSchema`.** An
+ * omission is not a missing feature, it is silent data loss: `logBodyMeasurement` merges
+ * over the parsed stored entry, zod strips whatever the schema does not declare, and PUT
+ * nulls every field the payload leaves out. That is exactly how `left_thigh` and
+ * `right_thigh` were being wiped off any day the user logged a weight.
  */
 export const bodyMeasurementWriteSchema = z.object({
   weight_kg: z.number().nullable().optional(),
@@ -265,6 +271,8 @@ export const bodyMeasurementWriteSchema = z.object({
   abdomen: z.number().nullable().optional(),
   waist: z.number().nullable().optional(),
   hips: z.number().nullable().optional(),
+  left_thigh: z.number().nullable().optional(),
+  right_thigh: z.number().nullable().optional(),
   left_calf: z.number().nullable().optional(),
   right_calf: z.number().nullable().optional(),
 });
