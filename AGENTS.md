@@ -106,8 +106,9 @@ per-user state to isolate, because there is no state.
 
 ### Reads and analytics, plus routine writes only
 
-Thirteen read/analytics tools, plus exactly two writes: `create-routine` and
-`update-routine`.
+Thirteen read/analytics tools, plus exactly three writes: `create-routine`,
+`update-routine` and `create-routine-folder`. All three touch routines and how they are
+organised, and nothing else.
 
 **Workout history is never written.** It is the raw material for every number this server
 produces, and a model's mistake there would silently move records and trends. There is no
@@ -124,7 +125,10 @@ be regressed:
 
 1. **Writes resolve everything before sending anything.** If one exercise name in a
    routine fails to resolve, nothing is written at all. A half-built routine would be
-   worse than no routine, because the user would have to clean it up by hand.
+   worse than no routine, because the user would have to clean it up by hand. The same
+   reasoning makes `create-routine-folder` refuse a title that already exists: a
+   duplicate is permanent, and it would make that folder name ambiguous forever, so
+   `create-routine` could never file anything into either copy again.
 2. **Failed writes are never retried.** A 5xx on a POST/PUT might be a write that
    actually landed. Retrying could produce a duplicate routine that cannot be deleted.
    Only 429 is retried on writes, because it is rejected before doing anything.

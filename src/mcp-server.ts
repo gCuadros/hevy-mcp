@@ -22,7 +22,7 @@ import {
   searchExercises,
   type ReadDeps,
 } from "./tools/read.js";
-import { createRoutine, updateRoutine, type WriteDeps } from "./tools/write.js";
+import { createRoutine, createRoutineFolder, updateRoutine, type WriteDeps } from "./tools/write.js";
 import { VERSION } from "./version.js";
 
 type Deps = ToolDeps & ReadDeps & AnalyticsDeps & WriteDeps;
@@ -288,6 +288,26 @@ export function createServer(deps: Deps): McpServer {
         return formatToolResult("Nothing was written — some exercises could not be resolved", result, true);
       }
       return formatToolResult(`Created "${result.result.title}" with ${result.result.exercises.length} exercise(s)`, result.result);
+    },
+  );
+
+  server.registerTool(
+    "create-routine-folder",
+    {
+      title: "Create routine folder",
+      description:
+        "Creates a routine folder in Hevy. Use only when the user asks for a new folder, or when create-routine reported that the folder they named does not exist and they confirmed they want it created. Check list-routine-folders first: a folder whose title already exists is not created again, because Hevy's API has no delete and a duplicate title would make that name ambiguous for every later routine. New folders are placed at the top of the list, shifting the others down.",
+      inputSchema: {
+        title: z.string().describe("Folder title as it will appear in Hevy"),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    async (input) => {
+      const result = await createRoutineFolder(deps, input);
+      if (result.status === "duplicate") {
+        return formatToolResult(`Nothing was created — "${result.existing.title}" already exists`, result);
+      }
+      return formatToolResult(`Created folder "${result.result.title}"`, result.result);
     },
   );
 

@@ -1,6 +1,6 @@
 # hevy-coach-mcp
 
-An MCP server for [Hevy](https://www.hevyapp.com/) (the workout tracking app). It fetches your workouts, routines and exercise templates live from Hevy — no local cache or database — then does the analytics math (e1RM, PRs, volume, consistency, period comparisons) so your MCP client can reason over real numbers instead of guessing. It can also create and edit routines; your workout history is read-only.
+An MCP server for [Hevy](https://www.hevyapp.com/) (the workout tracking app). It fetches your workouts, routines and exercise templates live from Hevy — no local cache or database — then does the analytics math (e1RM, PRs, volume, consistency, period comparisons) so your MCP client can reason over real numbers instead of guessing. It can also create and edit routines and their folders; your workout history is read-only.
 
 Requires **Hevy PRO** and a Hevy API key (Hevy app → Settings → API).
 
@@ -51,10 +51,11 @@ Thirteen read tools, all marked `readOnlyHint`:
 - `get-consistency` — training frequency, streak, longest gap
 - `compare-periods` — volume/workout-count diff between two date ranges
 
-Two write tools, declared as writes so your client asks first:
+Three write tools, declared as writes so your client asks first:
 
 - `create-routine` — build a new routine from exercise names, optionally into a folder named rather than numbered
 - `update-routine` — edit an existing routine; passing an exercise list replaces the old one outright (`destructiveHint`)
+- `create-routine-folder` — add a folder; a title that already exists is never created twice
 
 ## Resources
 
@@ -68,7 +69,7 @@ Two write tools, declared as writes so your client asks first:
 
 Nothing about your account is stored — every tool call fetches fresh from Hevy's API using your own key, and nothing about your account is sent anywhere else.
 
-Two tools write to Hevy: `create-routine` and `update-routine`, both declared as writes so your client asks before running them. Nothing writes to your workout history, and Hevy's API has no delete endpoint, so nothing can be removed. Note that a Hevy API key has no scopes — it grants full account access no matter what this server chooses to do with it.
+Three tools write to Hevy: `create-routine`, `update-routine` and `create-routine-folder`, all declared as writes so your client asks before running them. Nothing writes to your workout history, and Hevy's API has no delete endpoint, so nothing can be removed. Note that a Hevy API key has no scopes — it grants full account access no matter what this server chooses to do with it.
 
 ## Contributing
 

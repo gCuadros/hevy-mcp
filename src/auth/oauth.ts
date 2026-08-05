@@ -176,7 +176,8 @@ export function renderConnectPage(params: AuthorizeParams, errorMessage?: string
     </form>
     <p class="trust">Your key is checked against Hevy, then encrypted into the access token your AI client
     holds. This server has no database and stores nothing &mdash; not your key, not your workouts. It reads your
-    training history, and creates or edits <strong>routines</strong> when you ask it to. It never logs or edits
+    training history, and creates or edits <strong>routines</strong> &mdash; and the folders they sit in &mdash; when
+    you ask it to. It never logs or edits
     workouts, so your training record cannot be altered &mdash; and Hevy's API has no delete, so nothing can be
     removed. To revoke access, regenerate your key in Hevy.</p>
   </div>

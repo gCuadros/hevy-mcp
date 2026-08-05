@@ -32,6 +32,13 @@ Hevy's published documentation. Do not "simplify" a schema to match the docs.
   `{ routine: … }`, and `{ routine: [ … ] }` — depending on the endpoint.
   `routineResponseSchema` unwraps all three. This matters most after a write, where
   failing to parse a response would report an error for an operation that succeeded.
+- **`POST /v1/routine_folders` puts the new folder at index 0 and shifts every other
+  folder down**, as the docs claim — confirmed once against a real account. The response
+  parses through `routineFolderResponseSchema`, which unwraps the same envelope shapes
+  the routine endpoints use; whether this endpoint actually wraps is unverified, and
+  tolerating both is cheaper than finding out, because a folder cannot be deleted and a
+  response that failed to parse would report an error for a write that succeeded.
+  No test hits this endpoint for real, for the same reason.
 - **`rpe` is omitted entirely on routine sets**, rather than sent as `null` the way it is
   on workout sets. Hence the `.optional().transform()` in `routineSetSchema`.
 - **The workout-events endpoint returns `{ workouts: [] }` instead of `{ events: [] }`**

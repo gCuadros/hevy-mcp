@@ -194,6 +194,24 @@ export const routineFoldersPageSchema = z.object({
   routine_folders: z.array(routineFolderSchema),
 });
 
+export const createRoutineFolderBodySchema = z.object({
+  routine_folder: z.object({ title: z.string().min(1) }),
+});
+
+/**
+ * Hevy's doc says POST /v1/routine_folders answers with a bare folder, but single-routine
+ * responses already come back wrapped and sometimes wrapped in an array, so the same
+ * tolerance is applied here. Failing to parse the response of a write that succeeded would
+ * report an error for a folder that now exists and cannot be deleted.
+ */
+export const routineFolderResponseSchema = z.preprocess((value) => {
+  if (value && typeof value === "object" && "routine_folder" in value) {
+    const inner = (value as { routine_folder: unknown }).routine_folder;
+    return Array.isArray(inner) ? inner[0] : inner;
+  }
+  return value;
+}, routineFolderSchema);
+
 export const exerciseTemplateSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -224,5 +242,6 @@ export type CreateRoutineBody = z.infer<typeof createRoutineBodySchema>;
 export type UpdateRoutineBody = z.infer<typeof updateRoutineBodySchema>;
 export type RoutineFolder = z.infer<typeof routineFolderSchema>;
 export type RoutineFoldersPage = z.infer<typeof routineFoldersPageSchema>;
+export type CreateRoutineFolderBody = z.infer<typeof createRoutineFolderBodySchema>;
 export type ExerciseTemplate = z.infer<typeof exerciseTemplateSchema>;
 export type ExerciseTemplatesPage = z.infer<typeof exerciseTemplatesPageSchema>;
