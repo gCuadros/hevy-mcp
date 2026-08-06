@@ -68,6 +68,8 @@ Four write tools, declared as writes so your client asks first:
 
 `weekly-review`, `program-audit`, `deload-check`, `prepare-session` — guide the client through calling the right tools for common training questions.
 
+For the layer above those — a standing system prompt that turns the numbers into decisions — see [docs/COACH-PROMPT.md](docs/COACH-PROMPT.md).
+
 ## Privacy
 
 Nothing about your account is stored — every tool call fetches fresh from Hevy's API using your own key, and nothing about your account is sent anywhere else.
