@@ -19,4 +19,11 @@ describe("contentSecurityPolicy", () => {
       expect(policy).toContain("base-uri 'none'");
     }
   });
+
+  it("allows the inline favicon without opening up to remote images", () => {
+    // Favicons fall back to default-src, so 'none' drops the data: URI and the connect
+    // page renders with the browser's blank icon while asking for an API key.
+    expect(contentSecurityPolicy()).toContain("img-src data:;");
+    expect(contentSecurityPolicy()).not.toMatch(/img-src[^;]*https?:/);
+  });
 });

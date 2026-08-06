@@ -74,7 +74,11 @@ function loadTrustedHttpsOrigins(env: NodeJS.ProcessEnv): Set<string> {
  */
 export function contentSecurityPolicy(formActionOrigin?: string): string {
   const formAction = formActionOrigin ? `'self' ${formActionOrigin}` : "'self'";
-  return `default-src 'none'; style-src 'unsafe-inline'; form-action ${formAction}; base-uri 'none'; frame-ancestors 'none'`;
+  // img-src data: is only for the inline favicon. Favicons fall back to default-src, so
+  // 'none' silently drops it and the connect page shows the browser's blank default icon
+  // next to a field asking for an API key. No remote origin is granted, and the mark in the
+  // body is inline <svg> markup, which CSP does not treat as a resource fetch at all.
+  return `default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action ${formAction}; base-uri 'none'; frame-ancestors 'none'`;
 }
 
 function setSecurityHeaders(res: ServerResponse): void {
