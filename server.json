@@ -3,7 +3,7 @@
   "name": "io.github.gCuadros/hevy-coach-mcp",
   "title": "Hevy Coach",
   "description": "Training analytics over your Hevy log: e1RM, PRs, volume, consistency, bodyweight.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "repository": {
     "url": "https://github.com/gCuadros/hevy-mcp",
     "source": "github"
@@ -18,7 +18,7 @@
     {
       "registryType": "npm",
       "identifier": "hevy-coach-mcp",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "transport": {
         "type": "stdio"
       },
