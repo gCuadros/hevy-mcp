@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.gCuadros/hevy-coach-mcp",
+  "title": "Hevy Coach",
+  "description": "Training analytics over your Hevy log: e1RM, PRs, volume, consistency, bodyweight.",
+  "version": "0.4.1",
+  "repository": {
+    "url": "https://github.com/gCuadros/hevy-mcp",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://hevy-mcp-alpha.vercel.app/mcp"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "hevy-coach-mcp",
+      "version": "0.4.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "HEVY_API_KEY",
+          "description": "Hevy API key, from Hevy → Settings → API. Requires a Hevy PRO subscription.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
