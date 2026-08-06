@@ -1,6 +1,7 @@
 {
   "name": "hevy-coach-mcp",
   "version": "0.4.1",
+  "mcpName": "io.github.gCuadros/hevy-coach-mcp",
   "description": "MCP server for Hevy: live training analytics — e1RM, PRs, volume, consistency — plus routine and bodyweight logging. Your workout history is never written.",
   "license": "MIT",
   "type": "module",
