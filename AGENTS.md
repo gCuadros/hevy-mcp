@@ -298,11 +298,12 @@ See `.env.example` for every environment variable and what happens when it is mi
 - **`yarn run version` does not touch `server.json`.** That file is the MCP Registry
   manifest and carries the version twice, so bump both by hand in the same commit as the
   changesets bump. `src/registryManifest.test.ts` fails the moment they diverge — that
-  failure is the reminder, not a bug. Once the npm publish has landed, the maintainer
-  pushes the manifest with `mcp-publisher publish`; the registry rejects it unless the
-  tarball already on npm carries the matching `mcpName`, so the order is npm first,
-  registry second. Authenticating (`mcp-publisher login github`) is a GitHub account
-  operation and therefore the maintainer's, never an agent's.
+  failure is the reminder, not a bug. The `Release` workflow pushes the manifest itself,
+  in the same job and after the npm publish, because the registry rejects it unless the
+  tarball already on npm carries the matching `mcpName`. It authenticates with
+  `mcp-publisher login github-oidc`, so there is no account login and no token anywhere —
+  never replace it with `mcp-publisher login github`, which is a GitHub account operation
+  and therefore the maintainer's, never an agent's.
 - **There is no `NPM_TOKEN` and there should never be one.** The workflow publishes
   with npm trusted publishing (OIDC): npm verifies the `release.yml` workflow in this
   repo and attaches provenance automatically. The trusted publisher is configured on

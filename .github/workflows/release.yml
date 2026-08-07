@@ -70,3 +70,35 @@ jobs:
 
       # `changeset publish` tags the release locally; nothing pushes it for us.
       - run: git push --follow-tags
+
+      # The MCP Registry entry goes last, and in this job rather than a workflow of its
+      # own triggered by the tag above: a tag pushed with GITHUB_TOKEN does not trigger
+      # workflows, the same reason the versioning half of this release is manual. Being
+      # in the same job also gets the required order for free — the registry rejects the
+      # manifest unless the tarball already on npm carries a matching `mcpName`, and by
+      # here `yarn release` has published it.
+      #
+      # Pinned by version and by checksum, not `releases/latest/download`. This job holds
+      # `contents: write` and `id-token: write`, so an unpinned binary fetched from the
+      # internet and run here could push to main and mint tokens in our name. Upgrading
+      # is a commit someone reviews; take the new sha256 from the release's
+      # registry_<version>_checksums.txt.
+      - name: Install mcp-publisher
+        env:
+          MCP_PUBLISHER_VERSION: 1.8.1
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+        run: |
+          curl -fsSL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
+
+      # No token: `login github-oidc` exchanges the Actions OIDC token for a registry
+      # one, and the registry grants the io.github.gCuadros namespace because the token
+      # says this repository. Same trade as npm trusted publishing above.
+      - run: ./mcp-publisher login github-oidc
+
+      # Reads server.json, whose version `yarn run version` does not touch — it is bumped
+      # by hand on the release branch, and src/registryManifest.test.ts fails if it drifts
+      # from package.json. That test already ran two steps ago.
+      - run: ./mcp-publisher publish
