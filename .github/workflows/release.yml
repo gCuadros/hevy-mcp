@@ -69,7 +69,26 @@ jobs:
       - run: yarn release
 
       # `changeset publish` tags the release locally; nothing pushes it for us.
-      - run: git push --follow-tags
+      #
+      # Pushed by name rather than with `--follow-tags`. On the 0.4.2 release changesets
+      # logged `New tag: v0.4.2`, and the very next step printed "Everything up-to-date"
+      # and sent nothing: with the branch already current, git had no ref to attach the
+      # tag to. It went out by hand. Naming the tag removes the guesswork.
+      #
+      # The `elif` is what makes the silent version impossible: no tag here and none on
+      # the remote fails the job instead of finishing green. Re-running the workflow on an
+      # already published version is still safe — changesets publishes nothing and creates
+      # no tag, and the remote already has it.
+      - name: Push the release commit and its tag
+        run: |
+          git push
+          tag="v$(node -p "require('./package.json').version")"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            git push origin "refs/tags/$tag"
+          elif [ -z "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
+            echo "::error::$tag exists neither locally nor on the remote — changeset publish did not tag this release."
+            exit 1
+          fi
 
       # The MCP Registry entry goes last, and in this job rather than a workflow of its
       # own triggered by the tag above: a tag pushed with GITHUB_TOKEN does not trigger
