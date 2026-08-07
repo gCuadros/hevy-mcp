@@ -21,14 +21,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # No `registry-url:` here, and do not add one back. It makes setup-node write an
+      # .npmrc containing `_authToken=${NODE_AUTH_TOKEN}`, and this workflow has no token
+      # by design. yarn classic expands that .npmrc before running anything and dies on
+      # the unset variable — "Failed to replace env in config" — so `cache: yarn` fails
+      # inside setup-node itself, before a single step of ours runs. Nothing is lost:
+      # registry.npmjs.org is npm's default, and it is where the OIDC exchange happens.
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: yarn
-          # Also what makes npm write its .npmrc for the registry. Trusted
-          # publishing does not use it for a token — there is no token — but the
-          # OIDC exchange only happens against the configured registry.
-          registry-url: https://registry.npmjs.org
 
       # Node 22 ships npm 10.x; trusted publishing needs >= 11.5.1. changesets
       # shells out to npm for the publish, so upgrading npm here is what
